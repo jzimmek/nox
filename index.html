@@ -1,0 +1,49 @@
+<html>
+<head>
+  <title></title>
+  <meta http-equiv="X-UA-Compatible" content="IE=8" />
+  <script type="text/javascript" src="vendor/underscore.js"></script>
+  <script type="text/javascript" src="vendor/jquery-1.9.1.min.js"></script>
+  <script type="text/javascript" src="dist/nox.js"></script>
+  <style type="text/css">
+    .highlight-true {
+      background: green;
+    }
+  </style>
+  <script type="text/javascript">
+    var context = {
+          name: "joe",
+          entries: []
+        },
+        vars = {};
+
+    for(var i=0; i < 5000; i++){
+      context.entries.push({id: _.uniqueId(), name: "xxx"});
+    }
+
+    Nox.initAndUpdateBindings(context);
+  </script>
+</head>
+<body>
+
+  <p>we have {{this.entries.length}} entries</p>
+
+  <ul data-loop-person="this.entries" data-show="this.name.length > 10">
+    <li>
+      <span data-text="this.name"></span>
+      <span data-text="person.name"></span>
+      <input data-value="this.name" class="color-{{this.name.length > 5 ? 'red' : 'none'}}"/>
+      <input data-value="this.name"/>
+      <input data-value="this.name"/>
+      <input data-value="this.name"/>
+      <input data-value="person.name"/>
+      <a href="#" data-click="alert(person.name + ', ' + person.id)">action</a>
+    </li>
+  </ul>
+
+  <span data-text="this.name"></span>
+
+  <input data-value="this.name"/>
+
+</body>
+</html>
