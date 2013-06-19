@@ -1,1 +1,0 @@
-ruby -rsinatra -e "set :public_folder, '.'"
