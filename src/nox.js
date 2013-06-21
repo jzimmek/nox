@@ -23,7 +23,10 @@ Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContex
     }
   };
 
-  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren};
+
+  var release = _.bind(bindingImpl.release, bindingContext);
+
+  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
   Nox.bindings.push(binding);
 
   return binding;
@@ -47,13 +50,15 @@ Nox.defaulEvalExpr          = function(expr, context, vars){ return Nox.read(exp
 Nox.defaultValueState       = function(exprValue){ return exprValue; };
 Nox.defaultInit             = function(){ /* noop */ };
 Nox.defaultUpdate           = function(){ /* noop */ };
+Nox.defaultRelease          = function(){ /* noop */ };
 
 Nox.bindingImplFor = function(bindingName){
   return {
     init: Nox.Bindings[bindingName+"Init"] || Nox.defaultInit,
     update: Nox.Bindings[bindingName+"Update"] || Nox.defaultUpdate,
     evalExpr: Nox.Bindings[bindingName+"EvalExpr"] || Nox.defaulEvalExpr,
-    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState
+    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState,
+    release: Nox.Bindings[bindingName+"Release"] || Nox.defaultRelease
   };
 };
 
@@ -101,6 +106,9 @@ Nox.initAttributeBindings = function(el, context, vars, created){
   for(var i=0; i < attributes.length; i++){
     var attribute = attributes[i],
         expr = $(el).attr(attribute);
+
+    if(expr === undefined)
+      continue;
 
     if(attribute.indexOf("data-") == -1 && expr.indexOf("{{") > -1){
       expr = '"'+expr.replace(/\n/g, "\\n").replace(/\{\{(.*?)\}\}/g, "\"+($1)+\"")+'"';

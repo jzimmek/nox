@@ -27,6 +27,11 @@ Nox.release = function(el){
 
   var bindingIds = _(releasedBindingIds).chain().flatten().reject(function(e){ return e === ""; }).value();
 
+
+  var bindings = _.select(Nox.bindings, function(e){ return _.include(bindingIds, e.id); });
+
+  _.invoke(bindings, "releaseFun");
+
   Nox.bindings = _.reject(Nox.bindings, function(e){
     return _.include(bindingIds, e.id);
   });

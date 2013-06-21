@@ -26,6 +26,47 @@ Nox.Bindings.valueUpdate = function(exprValue, el, context, vars){
   $(el).val(exprValue);
 };
 
+Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
+
+  var placeholder = this.placeholder = $(el).attr("placeholder");
+
+  $(el).on("change blur keyup", function(){
+    mutate($(this).val());
+  });
+
+  if(navigator.userAgent.match(/MSIE/i)){
+  
+    $(el).focus(function(){
+      if($(this).val() == placeholder)
+        $(this).val("");
+    });
+
+    $(el).blur(function(){
+      if(!$(this).val())
+        $(this).val(placeholder);
+    });
+
+  }
+};
+
+Nox.Bindings.valuePlaceholderUpdate = function(exprValue, el, context, vars){
+  if(!exprValue && navigator.userAgent.match(/MSIE/i))
+    exprValue = this.placeholder;
+
+  $(el).val(exprValue);
+};
+
+Nox.Bindings.checkInit = function(expr, el, context, vars, mutate){
+  $(el).on("change", function(){
+    mutate($(this).is(":checked"));
+  });
+};
+
+Nox.Bindings.checkUpdate = function(exprValue, el, context, vars){
+  if(exprValue) $(el).prop("checked", true);
+  else          $(el).removeAttr("checked");
+};
+
 Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
   var isVisible = !!exprValue;
   $(el).toggle(isVisible);
@@ -98,9 +139,7 @@ Nox.Bindings.loopUpdate = function(exprValue, el, context, vars){
         $(this).attr("data-id", entryId);
         $(el).append(this);
 
-        for(var x=0; x < created.length; x++){
-          created[x].updateFun();
-        }
+        _.invoke(created, "updateFun");
       });
     }
 

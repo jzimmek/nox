@@ -33,6 +33,17 @@ describe("Nox", function(){
 
       expect(Nox.bindings.length).toBe(0);
     });
+
+    it("will call the <bindingName>Release on release(element) before removing the active bindings of it", function(){
+      var el = $("<span data-text='this.name'></span>")[0];
+
+      Nox.Bindings.textRelease = jasmine.createSpy("textRelease");
+
+      Nox.initAndUpdateBindings({}, {}, el);
+      Nox.release(el);
+
+      expect(Nox.Bindings.textRelease).toHaveBeenCalled();
+    })
   });
 
 
@@ -42,8 +53,8 @@ describe("Nox", function(){
     });
 
     it("returns an array of attribute names of the element", function(){
-      expect(Nox.parseAttributeNames($("<div data-value='data-value'></div>"))).toEqual(["data-value"]);
-      expect(Nox.parseAttributeNames($("<div data-1='data-1' data-2='data-2'></div>"))).toEqual(["data-1", "data-2"]);
+      expect(Nox.parseAttributeNames($("<div data-value='data-value'></div>")).join()).toEqual(["data-value"].join());
+      expect(Nox.parseAttributeNames($("<div data-1='data-1' data-2='data-2'></div>")).sort().join()).toEqual(["data-1", "data-2"].sort().join());
     });
   });
 

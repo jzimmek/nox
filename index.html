@@ -11,25 +11,49 @@
     }
   </style>
   <script type="text/javascript">
-    var context = {
+    var app = {
           name: "joe",
+          emptyName: "",
           entries: []
         },
         vars = {};
 
-    for(var i=0; i < 5000; i++){
-      context.entries.push({id: _.uniqueId(), name: "xxx"});
+
+    app.numDone = function(){
+      return _.where(this.entries, {done: true}).length;
+    };
+
+    app.removePerson = function(person){
+      this.entries = _.without(this.entries, person);
+    };
+
+    for(var i=0; i < 3; i++){
+      app.entries.push({id: _.uniqueId(), name: "xxx", done: false});
     }
 
-    Nox.initAndUpdateBindings(context);
+    Nox.Bindings.clockInit = function(expr, el, context, vars, mutate){
+      var intervalId = this.intervalId = window.setInterval(function(){
+        $(el).text(new Date().getTime());
+      }, 1000);
+    };
+
+    Nox.Bindings.clockRelease = function(){
+      window.clearInterval(this.intervalId);
+    };
+
+
+    Nox.initAndUpdateBindings(app);
   </script>
 </head>
 <body>
 
-  <p>we have {{this.entries.length}} entries</p>
+  <p>we have {{this.entries.length}} entries ({{this.numDone()}} done)</p>
 
-  <ul data-loop-person="this.entries" data-show="this.name.length > 10">
+  
+<!--  data-show="this.name.length > 10" -->
+  <ul data-loop-person="this.entries">
     <li>
+      <input type="checkbox" data-check="person.done"/>
       <span data-text="this.name"></span>
       <span data-text="person.name"></span>
       <input data-value="this.name" class="color-{{this.name.length > 5 ? 'red' : 'none'}}"/>
@@ -37,13 +61,16 @@
       <input data-value="this.name"/>
       <input data-value="this.name"/>
       <input data-value="person.name"/>
+      <span data-clock="1"></span>
       <a href="#" data-click="alert(person.name + ', ' + person.id)">action</a>
+      <a href="#" data-click="this.removePerson(person)">remove</a>
     </li>
   </ul>
 
   <span data-text="this.name"></span>
 
   <input data-value="this.name"/>
+  <input placeholder="xx" data-valuePlaceholder="this.emptyName"/>
 
 </body>
 </html>

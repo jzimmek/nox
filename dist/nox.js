@@ -23,7 +23,10 @@ Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContex
     }
   };
 
-  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren};
+
+  var release = _.bind(bindingImpl.release, bindingContext);
+
+  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
   Nox.bindings.push(binding);
 
   return binding;
@@ -40,20 +43,22 @@ Nox.updateBindings = function(){
     Nox.bindings[i].updateFun();
   }
   var end = new Date().getTime();
-  console.info("updateBindings took: " + (end - start));
+  // console.info("updateBindings took: " + (end - start));
 };
 
 Nox.defaulEvalExpr          = function(expr, context, vars){ return Nox.read(expr, context, vars); };
 Nox.defaultValueState       = function(exprValue){ return exprValue; };
 Nox.defaultInit             = function(){ /* noop */ };
 Nox.defaultUpdate           = function(){ /* noop */ };
+Nox.defaultRelease          = function(){ /* noop */ };
 
 Nox.bindingImplFor = function(bindingName){
   return {
     init: Nox.Bindings[bindingName+"Init"] || Nox.defaultInit,
     update: Nox.Bindings[bindingName+"Update"] || Nox.defaultUpdate,
     evalExpr: Nox.Bindings[bindingName+"EvalExpr"] || Nox.defaulEvalExpr,
-    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState
+    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState,
+    release: Nox.Bindings[bindingName+"Release"] || Nox.defaultRelease
   };
 };
 
@@ -101,6 +106,9 @@ Nox.initAttributeBindings = function(el, context, vars, created){
   for(var i=0; i < attributes.length; i++){
     var attribute = attributes[i],
         expr = $(el).attr(attribute);
+
+    if(expr === undefined)
+      continue;
 
     if(attribute.indexOf("data-") == -1 && expr.indexOf("{{") > -1){
       expr = '"'+expr.replace(/\n/g, "\\n").replace(/\{\{(.*?)\}\}/g, "\"+($1)+\"")+'"';
@@ -212,7 +220,9 @@ Nox.initAndUpdateBindings = function(context, vars, el){
     var created = Nox.initBindings(el || document.body, context, vars || {});
     Nox.updateBindings();
   });
-};Nox.Bindings = {};
+};$(document).on("ajaxComplete", function(){
+  Nox.updateBindings();
+});Nox.Bindings = {};
 
 Nox.Bindings.nodeAttributeUpdate = function(exprValue, el, context, vars){
   $(el).attr(this.attribute, exprValue);
@@ -238,6 +248,47 @@ Nox.Bindings.valueInit = function(expr, el, context, vars, mutate){
 
 Nox.Bindings.valueUpdate = function(exprValue, el, context, vars){
   $(el).val(exprValue);
+};
+
+Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
+
+  var placeholder = this.placeholder = $(el).attr("placeholder");
+
+  $(el).on("change blur keyup", function(){
+    mutate($(this).val());
+  });
+
+  if(navigator.userAgent.match(/MSIE/i)){
+  
+    $(el).focus(function(){
+      if($(this).val() == placeholder)
+        $(this).val("");
+    });
+
+    $(el).blur(function(){
+      if(!$(this).val())
+        $(this).val(placeholder);
+    });
+
+  }
+};
+
+Nox.Bindings.valuePlaceholderUpdate = function(exprValue, el, context, vars){
+  if(!exprValue && navigator.userAgent.match(/MSIE/i))
+    exprValue = this.placeholder;
+
+  $(el).val(exprValue);
+};
+
+Nox.Bindings.checkInit = function(expr, el, context, vars, mutate){
+  $(el).on("change", function(){
+    mutate($(this).is(":checked"));
+  });
+};
+
+Nox.Bindings.checkUpdate = function(exprValue, el, context, vars){
+  if(exprValue) $(el).prop("checked", true);
+  else          $(el).removeAttr("checked");
 };
 
 Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
@@ -312,9 +363,7 @@ Nox.Bindings.loopUpdate = function(exprValue, el, context, vars){
         $(this).attr("data-id", entryId);
         $(el).append(this);
 
-        for(var x=0; x < created.length; x++){
-          created[x].updateFun();
-        }
+        _.invoke(created, "updateFun");
       });
     }
 
@@ -381,6 +430,11 @@ Nox.release = function(el){
   }
 
   var bindingIds = _(releasedBindingIds).chain().flatten().reject(function(e){ return e === ""; }).value();
+
+
+  var bindings = _.select(Nox.bindings, function(e){ return _.include(bindingIds, e.id); });
+
+  _.invoke(bindings, "releaseFun");
 
   Nox.bindings = _.reject(Nox.bindings, function(e){
     return _.include(bindingIds, e.id);
