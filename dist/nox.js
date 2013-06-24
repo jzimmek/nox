@@ -4,29 +4,31 @@ Nox.bindings = [];
 
 Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes){
   var bindingId = (_.uniqueId() + 1) + "",
-      bindingContext = {},
-      mutate = _.bind(Nox.createMutate(expr, context, vars), bindingContext);
+      bindingContext = {
+        expr: expr,
+        context: context,
+        vars: vars,
+        el: el
+      },
+      mutate = _.bind(Nox.mutate, bindingContext);
 
   _.extend(bindingContext, bindingContextAttributes||{});
 
   if(bindingImpl.init !== Nox.defaultInit)
-    bindingImpl.init.call(bindingContext, expr, el, context, vars, mutate);
+    bindingImpl.init.call(bindingContext, el, mutate);
 
-  var f = function(){
-    if(bindingImpl.update !== Nox.defaultUpdate){
-      var exprValue = bindingImpl.evalExpr(expr, context, vars);
+  var f = (bindingImpl.update === Nox.defaultUpdate) ? Nox.defaultUpdate : (function(){
+    var value = bindingImpl.value(expr, context, vars);
 
-      if(!_.isEqual(exprValue, bindingContext.state)){
-        bindingContext.state = bindingImpl.valueState(exprValue);
-        bindingImpl.update.call(bindingContext, exprValue, el, context, vars);
-      }
+    if(!_.isEqual(value, bindingContext.state)){
+      bindingContext.state = bindingImpl.state(value);
+      bindingImpl.update.call(bindingContext, el, value);
     }
-  };
+  });
 
+  var release = _.bind(bindingImpl.release, bindingContext),
+      binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
 
-  var release = _.bind(bindingImpl.release, bindingContext);
-
-  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
   Nox.bindings.push(binding);
 
   return binding;
@@ -46,39 +48,35 @@ Nox.updateBindings = function(){
   // console.info("updateBindings took: " + (end - start));
 };
 
-Nox.defaulEvalExpr          = function(expr, context, vars){ return Nox.read(expr, context, vars); };
-Nox.defaultValueState       = function(exprValue){ return exprValue; };
-Nox.defaultInit             = function(){ /* noop */ };
-Nox.defaultUpdate           = function(){ /* noop */ };
-Nox.defaultRelease          = function(){ /* noop */ };
+Nox.defaulValue       = function(expr, context, vars){ return Nox.read(expr, context, vars); };
+Nox.defaultState      = function(value){ return value; };
+Nox.defaultInit       = function(){ /* noop */ };
+Nox.defaultUpdate     = function(){ /* noop */ };
+Nox.defaultRelease    = function(){ /* noop */ };
 
 Nox.bindingImplFor = function(bindingName){
   return {
     init: Nox.Bindings[bindingName+"Init"] || Nox.defaultInit,
     update: Nox.Bindings[bindingName+"Update"] || Nox.defaultUpdate,
-    evalExpr: Nox.Bindings[bindingName+"EvalExpr"] || Nox.defaulEvalExpr,
-    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState,
+    value: Nox.Bindings[bindingName+"Value"] || Nox.defaulValue,
+    state: Nox.Bindings[bindingName+"State"] || Nox.defaultState,
     release: Nox.Bindings[bindingName+"Release"] || Nox.defaultRelease
   };
 };
 
-Nox.createMutate = function(expr, context, vars){
-  // the returned function will be invoked in binddngContext, so it is safe to use this.state
-  return function(newValue){
-    if(newValue === undefined){
-      // event handler will pass "undefined" as newValue
-      // we do not want to check any state changes
-      // simply fire updateBindings
+Nox.mutate = function(newValue){
+  if(newValue === undefined){
+    // event handler will pass "undefined" as newValue
+    // we do not want to check any state changes
+    // simply fire updateBindings
+    Nox.updateBindings();
+  }else{
+    if(!_.isEqual(newValue, this.state)){
+      this.state = newValue;
+      Nox.write(this.expr, this.context, this.vars, newValue);
       Nox.updateBindings();
-    }else{
-      if(!_.isEqual(newValue, this.state)){
-        this.state = newValue;
-        Nox.write(expr, context, vars, newValue);
-        Nox.updateBindings();
-      }
     }
-
-  };
+  }
 };
 
 Nox.addBindingId = function(el, bindingId, attrName){
@@ -217,22 +215,26 @@ Nox.initBindings = function(el, context, vars, created){
 
 Nox.initAndUpdateBindings = function(context, vars, el){
   $(function(){
-    var created = Nox.initBindings(el || document.body, context, vars || {});
+    Nox.initBindings(el || document.body, context, vars || {});
     Nox.updateBindings();
   });
 };$(document).on("ajaxComplete", function(){
   Nox.updateBindings();
 });Nox.Bindings = {};
 
-Nox.Bindings.nodeAttributeUpdate = function(exprValue, el, context, vars){
-  $(el).attr(this.attribute, exprValue);
+Nox.Bindings.nodeAttributeUpdate = function(el, value){
+  $(el).attr(this.attribute, value);
 };
 
-Nox.Bindings.nodeValueUpdate = function(exprValue, el, context, vars){
-  el.nodeValue = exprValue;
+Nox.Bindings.nodeValueUpdate = function(el, value){
+  el.nodeValue = value;
 };
 
-Nox.Bindings.clickInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.clickInit = function(el, mutate){
+  var expr = this.expr,
+      context = this.context,
+      vars = this.vars;
+
   $(el).on("click", function(e){
     e.preventDefault();
     Nox.read(expr, context, vars);
@@ -240,17 +242,17 @@ Nox.Bindings.clickInit = function(expr, el, context, vars, mutate){
   });
 };
 
-Nox.Bindings.valueInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.valueInit = function(el, mutate){
   $(el).on("change blur keyup", function(){
     mutate($(this).val());
   });
 };
 
-Nox.Bindings.valueUpdate = function(exprValue, el, context, vars){
-  $(el).val(exprValue);
+Nox.Bindings.valueUpdate = function(el, value){
+  $(el).val(value);
 };
 
-Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.valuePlaceholderInit = function(el, mutate){
 
   var placeholder = this.placeholder = $(el).attr("placeholder");
 
@@ -273,26 +275,26 @@ Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
   }
 };
 
-Nox.Bindings.valuePlaceholderUpdate = function(exprValue, el, context, vars){
-  if(!exprValue && navigator.userAgent.match(/MSIE/i))
-    exprValue = this.placeholder;
+Nox.Bindings.valuePlaceholderUpdate = function(el, value){
+  if(!value && navigator.userAgent.match(/MSIE/i))
+    value = this.placeholder;
 
-  $(el).val(exprValue);
+  $(el).val(value);
 };
 
-Nox.Bindings.checkInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.checkInit = function(el, mutate){
   $(el).on("change", function(){
     mutate($(this).is(":checked"));
   });
 };
 
-Nox.Bindings.checkUpdate = function(exprValue, el, context, vars){
-  if(exprValue) $(el).prop("checked", true);
-  else          $(el).removeAttr("checked");
+Nox.Bindings.checkUpdate = function(el, value){
+  if(value)   $(el).prop("checked", true);
+  else        $(el).removeAttr("checked");
 };
 
-Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
-  var isVisible = !!exprValue;
+Nox.Bindings.showUpdate = function(el, value){
+  var isVisible = !!value;
   $(el).toggle(isVisible);
 
   if(!isVisible){
@@ -300,42 +302,44 @@ Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
   }
 };
 
-Nox.Bindings.hideUpdate = function(exprValue, el, context, vars){
-  var isVisible = !exprValue;
+Nox.Bindings.hideUpdate = function(el, value){
+  var isVisible = !value;
   $(el).toggle(isVisible);
 };
 
-Nox.Bindings.textUpdate = function(exprValue, el, context, vars){
-  $(el).text(exprValue);
+Nox.Bindings.textUpdate = function(el, value){
+  $(el).text(value);
 };
 
 Nox.Bindings.loopFactory = function(expr, dynamic){
   return "{entries: '"+expr+"', as: '"+dynamic+"'}";
 };
 
-Nox.Bindings.loopEvalExpr = function(expr, context, vars){
+Nox.Bindings.loopValue = function(expr, context, vars){
   var res = Nox.read(expr, context, vars);
 
   if(_.isArray(res))  return {entries: res, as: 'entry'};
   else                return {entries: Nox.read(res.entries, context, vars), as: res.as || "entry"};
 }
 
-Nox.Bindings.loopValueState = function(exprValue){
+Nox.Bindings.loopState = function(exprValue){
   return _.pluck(exprValue.entries, "id");
 };
 
-Nox.Bindings.loopInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.loopInit = function(el, mutate){
   this.skipChildren = true;
   this.tpl = $(el).html().replace(/^\s+|\s+$/g, "");
 
   $(el).empty();
 };
 
-Nox.Bindings.loopUpdate = function(exprValue, el, context, vars){
-  var entries = exprValue.entries,
-      as = exprValue.as,
+Nox.Bindings.loopUpdate = function(el, value){
+  var entries = value.entries,
+      as = value.as,
       entryIds = _.map(entries, function(e){ return e.id + ""; }),
-      tpl = this.tpl;
+      tpl = this.tpl,
+      context = this.context,
+      vars = this.vars;
 
 
   var childIds = _.map($("> [data-id]", el).toArray(), function(e){ return $(e).attr("data-id"); });

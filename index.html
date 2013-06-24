@@ -11,13 +11,39 @@
     }
   </style>
   <script type="text/javascript">
+
+    var LoginForm = function(){
+      this.email = "";
+      this.password = "";
+
+      // this.validator = new Nox.Validator(this);
+      
+      // this.validator.field("email", true).min(3).min(20).pattern(/@/);
+
+      // this.validator.field("password", true);
+
+      // this.validator.fun("virtualField", function(){
+      //   if(this.active)
+      //     return null;
+
+      //   return "not_active";
+      // });
+    };
+
+    // LoginForm.prototype.submit = function(){
+      
+    //   if(this.validator.validate()){
+    //     // call server
+    //   }
+    // };
+
     var app = {
           name: "joe",
           emptyName: "",
-          entries: []
+          entries: [],
+          loginForm: new LoginForm()
         },
         vars = {};
-
 
     app.numDone = function(){
       return _.where(this.entries, {done: true}).length;
@@ -30,17 +56,6 @@
     for(var i=0; i < 3; i++){
       app.entries.push({id: _.uniqueId(), name: "xxx", done: false});
     }
-
-    Nox.Bindings.clockInit = function(expr, el, context, vars, mutate){
-      var intervalId = this.intervalId = window.setInterval(function(){
-        $(el).text(new Date().getTime());
-      }, 1000);
-    };
-
-    Nox.Bindings.clockRelease = function(){
-      window.clearInterval(this.intervalId);
-    };
-
 
     Nox.initAndUpdateBindings(app);
   </script>
@@ -61,7 +76,6 @@
       <input data-value="this.name"/>
       <input data-value="this.name"/>
       <input data-value="person.name"/>
-      <span data-clock="1"></span>
       <a href="#" data-click="alert(person.name + ', ' + person.id)">action</a>
       <a href="#" data-click="this.removePerson(person)">remove</a>
     </li>

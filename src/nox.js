@@ -4,29 +4,31 @@ Nox.bindings = [];
 
 Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes){
   var bindingId = (_.uniqueId() + 1) + "",
-      bindingContext = {},
-      mutate = _.bind(Nox.createMutate(expr, context, vars), bindingContext);
+      bindingContext = {
+        expr: expr,
+        context: context,
+        vars: vars,
+        el: el
+      },
+      mutate = _.bind(Nox.mutate, bindingContext);
 
   _.extend(bindingContext, bindingContextAttributes||{});
 
   if(bindingImpl.init !== Nox.defaultInit)
-    bindingImpl.init.call(bindingContext, expr, el, context, vars, mutate);
+    bindingImpl.init.call(bindingContext, el, mutate);
 
-  var f = function(){
-    if(bindingImpl.update !== Nox.defaultUpdate){
-      var exprValue = bindingImpl.evalExpr(expr, context, vars);
+  var f = (bindingImpl.update === Nox.defaultUpdate) ? Nox.defaultUpdate : (function(){
+    var value = bindingImpl.value(expr, context, vars);
 
-      if(!_.isEqual(exprValue, bindingContext.state)){
-        bindingContext.state = bindingImpl.valueState(exprValue);
-        bindingImpl.update.call(bindingContext, exprValue, el, context, vars);
-      }
+    if(!_.isEqual(value, bindingContext.state)){
+      bindingContext.state = bindingImpl.state(value);
+      bindingImpl.update.call(bindingContext, el, value);
     }
-  };
+  });
 
+  var release = _.bind(bindingImpl.release, bindingContext),
+      binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
 
-  var release = _.bind(bindingImpl.release, bindingContext);
-
-  var binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
   Nox.bindings.push(binding);
 
   return binding;
@@ -46,39 +48,35 @@ Nox.updateBindings = function(){
   // console.info("updateBindings took: " + (end - start));
 };
 
-Nox.defaulEvalExpr          = function(expr, context, vars){ return Nox.read(expr, context, vars); };
-Nox.defaultValueState       = function(exprValue){ return exprValue; };
-Nox.defaultInit             = function(){ /* noop */ };
-Nox.defaultUpdate           = function(){ /* noop */ };
-Nox.defaultRelease          = function(){ /* noop */ };
+Nox.defaulValue       = function(expr, context, vars){ return Nox.read(expr, context, vars); };
+Nox.defaultState      = function(value){ return value; };
+Nox.defaultInit       = function(){ /* noop */ };
+Nox.defaultUpdate     = function(){ /* noop */ };
+Nox.defaultRelease    = function(){ /* noop */ };
 
 Nox.bindingImplFor = function(bindingName){
   return {
     init: Nox.Bindings[bindingName+"Init"] || Nox.defaultInit,
     update: Nox.Bindings[bindingName+"Update"] || Nox.defaultUpdate,
-    evalExpr: Nox.Bindings[bindingName+"EvalExpr"] || Nox.defaulEvalExpr,
-    valueState: Nox.Bindings[bindingName+"ValueState"] || Nox.defaultValueState,
+    value: Nox.Bindings[bindingName+"Value"] || Nox.defaulValue,
+    state: Nox.Bindings[bindingName+"State"] || Nox.defaultState,
     release: Nox.Bindings[bindingName+"Release"] || Nox.defaultRelease
   };
 };
 
-Nox.createMutate = function(expr, context, vars){
-  // the returned function will be invoked in binddngContext, so it is safe to use this.state
-  return function(newValue){
-    if(newValue === undefined){
-      // event handler will pass "undefined" as newValue
-      // we do not want to check any state changes
-      // simply fire updateBindings
+Nox.mutate = function(newValue){
+  if(newValue === undefined){
+    // event handler will pass "undefined" as newValue
+    // we do not want to check any state changes
+    // simply fire updateBindings
+    Nox.updateBindings();
+  }else{
+    if(!_.isEqual(newValue, this.state)){
+      this.state = newValue;
+      Nox.write(this.expr, this.context, this.vars, newValue);
       Nox.updateBindings();
-    }else{
-      if(!_.isEqual(newValue, this.state)){
-        this.state = newValue;
-        Nox.write(expr, context, vars, newValue);
-        Nox.updateBindings();
-      }
     }
-
-  };
+  }
 };
 
 Nox.addBindingId = function(el, bindingId, attrName){
@@ -217,7 +215,7 @@ Nox.initBindings = function(el, context, vars, created){
 
 Nox.initAndUpdateBindings = function(context, vars, el){
   $(function(){
-    var created = Nox.initBindings(el || document.body, context, vars || {});
+    Nox.initBindings(el || document.body, context, vars || {});
     Nox.updateBindings();
   });
 };

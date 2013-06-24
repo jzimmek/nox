@@ -1,14 +1,18 @@
 Nox.Bindings = {};
 
-Nox.Bindings.nodeAttributeUpdate = function(exprValue, el, context, vars){
-  $(el).attr(this.attribute, exprValue);
+Nox.Bindings.nodeAttributeUpdate = function(el, value){
+  $(el).attr(this.attribute, value);
 };
 
-Nox.Bindings.nodeValueUpdate = function(exprValue, el, context, vars){
-  el.nodeValue = exprValue;
+Nox.Bindings.nodeValueUpdate = function(el, value){
+  el.nodeValue = value;
 };
 
-Nox.Bindings.clickInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.clickInit = function(el, mutate){
+  var expr = this.expr,
+      context = this.context,
+      vars = this.vars;
+
   $(el).on("click", function(e){
     e.preventDefault();
     Nox.read(expr, context, vars);
@@ -16,17 +20,17 @@ Nox.Bindings.clickInit = function(expr, el, context, vars, mutate){
   });
 };
 
-Nox.Bindings.valueInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.valueInit = function(el, mutate){
   $(el).on("change blur keyup", function(){
     mutate($(this).val());
   });
 };
 
-Nox.Bindings.valueUpdate = function(exprValue, el, context, vars){
-  $(el).val(exprValue);
+Nox.Bindings.valueUpdate = function(el, value){
+  $(el).val(value);
 };
 
-Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.valuePlaceholderInit = function(el, mutate){
 
   var placeholder = this.placeholder = $(el).attr("placeholder");
 
@@ -49,26 +53,26 @@ Nox.Bindings.valuePlaceholderInit = function(expr, el, context, vars, mutate){
   }
 };
 
-Nox.Bindings.valuePlaceholderUpdate = function(exprValue, el, context, vars){
-  if(!exprValue && navigator.userAgent.match(/MSIE/i))
-    exprValue = this.placeholder;
+Nox.Bindings.valuePlaceholderUpdate = function(el, value){
+  if(!value && navigator.userAgent.match(/MSIE/i))
+    value = this.placeholder;
 
-  $(el).val(exprValue);
+  $(el).val(value);
 };
 
-Nox.Bindings.checkInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.checkInit = function(el, mutate){
   $(el).on("change", function(){
     mutate($(this).is(":checked"));
   });
 };
 
-Nox.Bindings.checkUpdate = function(exprValue, el, context, vars){
-  if(exprValue) $(el).prop("checked", true);
-  else          $(el).removeAttr("checked");
+Nox.Bindings.checkUpdate = function(el, value){
+  if(value)   $(el).prop("checked", true);
+  else        $(el).removeAttr("checked");
 };
 
-Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
-  var isVisible = !!exprValue;
+Nox.Bindings.showUpdate = function(el, value){
+  var isVisible = !!value;
   $(el).toggle(isVisible);
 
   if(!isVisible){
@@ -76,42 +80,44 @@ Nox.Bindings.showUpdate = function(exprValue, el, context, vars){
   }
 };
 
-Nox.Bindings.hideUpdate = function(exprValue, el, context, vars){
-  var isVisible = !exprValue;
+Nox.Bindings.hideUpdate = function(el, value){
+  var isVisible = !value;
   $(el).toggle(isVisible);
 };
 
-Nox.Bindings.textUpdate = function(exprValue, el, context, vars){
-  $(el).text(exprValue);
+Nox.Bindings.textUpdate = function(el, value){
+  $(el).text(value);
 };
 
 Nox.Bindings.loopFactory = function(expr, dynamic){
   return "{entries: '"+expr+"', as: '"+dynamic+"'}";
 };
 
-Nox.Bindings.loopEvalExpr = function(expr, context, vars){
+Nox.Bindings.loopValue = function(expr, context, vars){
   var res = Nox.read(expr, context, vars);
 
   if(_.isArray(res))  return {entries: res, as: 'entry'};
   else                return {entries: Nox.read(res.entries, context, vars), as: res.as || "entry"};
 }
 
-Nox.Bindings.loopValueState = function(exprValue){
+Nox.Bindings.loopState = function(exprValue){
   return _.pluck(exprValue.entries, "id");
 };
 
-Nox.Bindings.loopInit = function(expr, el, context, vars, mutate){
+Nox.Bindings.loopInit = function(el, mutate){
   this.skipChildren = true;
   this.tpl = $(el).html().replace(/^\s+|\s+$/g, "");
 
   $(el).empty();
 };
 
-Nox.Bindings.loopUpdate = function(exprValue, el, context, vars){
-  var entries = exprValue.entries,
-      as = exprValue.as,
+Nox.Bindings.loopUpdate = function(el, value){
+  var entries = value.entries,
+      as = value.as,
       entryIds = _.map(entries, function(e){ return e.id + ""; }),
-      tpl = this.tpl;
+      tpl = this.tpl,
+      context = this.context,
+      vars = this.vars;
 
 
   var childIds = _.map($("> [data-id]", el).toArray(), function(e){ return $(e).attr("data-id"); });
