@@ -1,14 +1,13 @@
 var Nox = {};
 
-Nox.bindings = [];
-
-Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes){
+Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes, bindingSet){
   var bindingId = (_.uniqueId() + 1) + "",
       bindingContext = {
         expr: expr,
         context: context,
         vars: vars,
-        el: el
+        el: el,
+        bindingSet: bindingSet
       },
       mutate = _.bind(Nox.mutate, bindingContext);
 
@@ -29,23 +28,9 @@ Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContex
   var release = _.bind(bindingImpl.release, bindingContext),
       binding = {id: bindingId, updateFun: f, skipChildren: bindingContext.skipChildren, releaseFun: release};
 
-  Nox.bindings.push(binding);
+  bindingSet.addBinding(binding);
 
   return binding;
-};
-
-Nox.updateBindings = function(){
-  var start = new Date().getTime();
-
-  // for(var i=0; i < Nox.bindings.length; i++){
-  //   Nox.bindings[i].skipUpdate = false;
-  // }
-
-  for(var i=0; i < Nox.bindings.length; i++){
-    Nox.bindings[i].updateFun();
-  }
-  var end = new Date().getTime();
-  // console.info("updateBindings took: " + (end - start));
 };
 
 Nox.defaulValue       = function(expr, context, vars){ return Nox.read(expr, context, vars); };
@@ -69,36 +54,21 @@ Nox.mutate = function(newValue){
     // event handler will pass "undefined" as newValue
     // we do not want to check any state changes
     // simply fire updateBindings
-    Nox.updateBindings();
+    this.bindingSet.rootBindingSet().updateFun();
   }else{
     if(!_.isEqual(newValue, this.state)){
       this.state = newValue;
       Nox.write(this.expr, this.context, this.vars, newValue);
-      Nox.updateBindings();
+      this.bindingSet.rootBindingSet().updateFun();
     }
   }
 };
 
-Nox.addBindingId = function(el, bindingId, attrName){
-  attrName = attrName || "data-binding-ids";
-  var bindingIds = $(el).attr(attrName);
+Nox.decodeBracketExpression = function(expr){
+  return '"'+expr.replace(/\n/g, "\\n").replace(/\{\{(.*?)\}\}/g, "\"+($1)+\"")+'"';
+};
 
-  if(bindingIds){
-    var bindingIdsArr = bindingIds.split(",")
-    bindingIdsArr.push(bindingId);
-    bindingIds = bindingIdsArr.join(",");
-  }else{
-    bindingIds = bindingId + "";
-  }
-
-  $(el).attr(attrName, bindingIds);
-}
-
-Nox.addDependentBindingId = function(el, dependentBindingId){
-  Nox.addBindingId(el, dependentBindingId, "data-dependent-binding-ids");
-}
-
-Nox.initAttributeBindings = function(el, context, vars, created){
+Nox.initAttributeBindings = function(el, context, vars, bindingSet){
   var attributes = Nox.parseAttributeNames(el);
 
   for(var i=0; i < attributes.length; i++){
@@ -109,36 +79,31 @@ Nox.initAttributeBindings = function(el, context, vars, created){
       continue;
 
     if(attribute.indexOf("data-") == -1 && expr.indexOf("{{") > -1){
-      expr = '"'+expr.replace(/\n/g, "\\n").replace(/\{\{(.*?)\}\}/g, "\"+($1)+\"")+'"';
+      expr = Nox.decodeBracketExpression(expr);
 
       var bindingImpl = Nox.bindingImplFor("nodeAttribute"),
-          binding = Nox.createBinding(expr, el, context, vars, bindingImpl, {attribute: attribute});
-
-      Nox.addDependentBindingId(el, binding.id);
-
-      created.push(binding);
+          binding = Nox.createBinding(expr, el, context, vars, bindingImpl, {attribute: attribute}, bindingSet);
     }
   }
 }
 
-Nox.initTextBindings = function(el, context, vars, created){
-  for(var i=0; i < el.childNodes.length; i++){
-    var childNode = el.childNodes[i],
-        expr = $(childNode).text();
-
-    if(childNode.nodeType == 3 && expr.indexOf("{{") > -1){
-
-      expr = '"'+expr.replace(/\n/g, "\\n").replace(/\{\{(.*?)\}\}/g, "\"+($1)+\"")+'"';
-
-      var bindingImpl = Nox.bindingImplFor("nodeValue"),
-          binding = Nox.createBinding(expr, childNode, context, vars, bindingImpl)
-
-      Nox.addDependentBindingId(el, binding.id);
-
-      created.push(binding);
-    }
-  }
-}
+Nox.initTextBindings = function(el, context, vars, bindingSet){
+  _(el.childNodes).chain()
+                  // only nodes of type TEXT
+                  .where({nodeType: 3})
+                  .map(function(childNode){
+                    return [childNode, $(childNode).text()];
+                  }).select(function(arr){
+                    // skip nodes which does not contain an expression
+                    return arr[1].indexOf("{{") > -1;
+                  }).map(function(arr){
+                    // make text expression a valid javascript statement
+                    return [arr[0], Nox.decodeBracketExpression(arr[1])];
+                  }).each(function(arr){
+                    // create binding for text expression
+                    Nox.createBinding(arr[1], arr[0], context, vars, Nox.bindingImplFor("nodeValue"), {}, bindingSet)
+                  }).value();
+};
 
 Nox.bindingNames = function(){
   return _(Nox.Bindings).chain()
@@ -167,7 +132,7 @@ Nox.factoryExpr = function(el, bindingName){
   return null;
 }
 
-Nox.initDataBindings = function(el, context, vars, created){
+Nox.initDataBindings = function(el, context, vars, bindingSet){
   var skipChildren = false,
       bindingNames = Nox.bindingNames();
 
@@ -184,43 +149,135 @@ Nox.initDataBindings = function(el, context, vars, created){
       continue;
 
     var bindingImpl = Nox.bindingImplFor(bindingName),
-        binding = Nox.createBinding(expr, el, context, vars, bindingImpl);
+        binding = Nox.createBinding(expr, el, context, vars, bindingImpl, {}, bindingSet);
         skipChildren = binding.skipChildren || skipChildren;
-
-    Nox.addBindingId(el, binding.id);
-
-    created.push(binding);
   }
 
   return skipChildren;
 }
 
-Nox.initBindings = function(el, context, vars, created){
-  var created = created || [],
-      skipChildren = Nox.initDataBindings(el, context, vars, created);
+Nox.initBindings = function(el, context, vars, parentBindingSet){
+  var parentBindingSet = parentBindingSet || Nox.rootBindingSet,
+      bindingSet = parentBindingSet.nested(el),
+      skipChildren = Nox.initDataBindings(el, context, vars, bindingSet);
 
-  Nox.initAttributeBindings(el, context, vars, created);
+  Nox.initAttributeBindings(el, context, vars, bindingSet);
 
   if(skipChildren)
-    return created;
+    return bindingSet;
 
-  Nox.initTextBindings(el, context, vars, created);
+  Nox.initTextBindings(el, context, vars, bindingSet);
+
+  if(!bindingSet.hasBindings()){
+    parentBindingSet.removeBindingSet(bindingSet);
+    bindingSet = parentBindingSet;
+  }
 
   $(el).children().each(function(){
-    Nox.initBindings(this, context, vars, created);
+    Nox.initBindings(this, context, vars, bindingSet);
   });
 
-  return created;
+  return bindingSet;
 };
 
 Nox.initAndUpdateBindings = function(context, vars, el){
-  $(function(){
-    Nox.initBindings(el || document.body, context, vars || {});
-    Nox.updateBindings();
-  });
+  return Nox.initBindings(el || document.body, context, vars || {}).rootBindingSet().updateFun();
 };$(document).on("ajaxComplete", function(){
-  Nox.updateBindings();
-});Nox.Bindings = {};
+  Nox.rootBindingSet.updateFun();
+});Nox.BindingSet = function(el, parentBindingSet){
+  this.bindings = [];
+  this.bindingSets = [];
+  this.el = el;
+  this.parentBindingSet = parentBindingSet || null;
+};
+
+Nox.BindingSet.prototype.rootBindingSet = function(){
+  return (this.parentBindingSet == null) ? this : this.parentBindingSet.rootBindingSet();
+};
+
+Nox.BindingSet.prototype.nested = function(el){
+  var bindingSet = new Nox.BindingSet(el, this);
+  this.bindingSets.push(bindingSet);
+
+  return bindingSet;
+};
+
+Nox.BindingSet.prototype.findByEl = function(el){
+  if(this.el === el)
+    return this;
+
+  for(var i=0; i < this.bindingSets.length; i++){
+    var res = this.bindingSets[i].findByEl(el);
+    if(res)
+      return res;
+  }
+
+  return null;
+};
+
+Nox.BindingSet.prototype.hasBindings = function(){
+  return this.numBindings() > 0;
+};
+
+Nox.BindingSet.prototype.hasBindingsDeep = function(){
+  return this.numBindingsDeep() > 0;
+};
+
+Nox.BindingSet.prototype.numBindings = function(){
+  return this.bindings.length;
+};
+
+Nox.BindingSet.prototype.numBindingsDeep = function(){
+  var num = this.bindings.length;
+
+  for(var i=0; i < this.bindingSets.length; i++){
+    num += this.bindingSets[i].numBindingsDeep();
+  }
+
+  return num;
+};
+
+Nox.BindingSet.prototype.numBindingSets = function(){
+  return this.bindingSets.length;
+};
+
+Nox.BindingSet.prototype.addBinding = function(binding){
+  this.bindings.push(binding);
+};
+
+Nox.BindingSet.prototype.removeBinding = function(binding){
+  this.bindings = _.without(this.bindings, binding);
+};
+
+Nox.BindingSet.prototype.removeBindingSet = function(bindingSet){
+  this.bindingSets = _.without(this.bindingSets, bindingSet);
+};
+
+Nox.BindingSet.prototype.updateFun = function(){
+  _.invoke(this.bindings, "updateFun");
+  _.invoke(this.bindingSets, "updateFun");
+  return this;
+};
+
+Nox.BindingSet.prototype.releaseFun = function(){  
+  this.parentBindingSet.removeBindingSet(this);
+
+  if(this.bindings == null || this.bindingSets == null)
+    throw "has already been released";
+
+  _.invoke(this.bindings, "releaseFun");
+  _.invoke(this.bindingSets, "releaseFun");
+
+  $(this.el).remove();
+
+  this.el = null;
+  this.parentBindingSet = null;
+  this.bindings = null;
+  this.bindingSets = null;
+};
+
+Nox.rootBindingSet = new Nox.BindingSet(null, null);
+Nox.Bindings = {};
 
 Nox.Bindings.nodeAttributeUpdate = function(el, value){
   $(el).attr(this.attribute, value);
@@ -339,7 +396,8 @@ Nox.Bindings.loopUpdate = function(el, value){
       entryIds = _.map(entries, function(e){ return e.id + ""; }),
       tpl = this.tpl,
       context = this.context,
-      vars = this.vars;
+      vars = this.vars,
+      bindingSet = this.bindingSet;
 
 
   var childIds = _.map($("> [data-id]", el).toArray(), function(e){ return $(e).attr("data-id"); });
@@ -349,8 +407,7 @@ Nox.Bindings.loopUpdate = function(el, value){
     if(!_.include(entryIds, childId)){
       // console.info("remove existing dom child ("+childId+") which no longer exist in model")
       var childEl = $("> [data-id='"+childId+"']", el)[0];
-      Nox.release(childEl);
-      $(childEl).remove();
+      Nox.rootBindingSet.findByEl(childEl).releaseFun();
     }
   }
 
@@ -363,11 +420,18 @@ Nox.Bindings.loopUpdate = function(el, value){
       newVars[as] = entries[i];
 
       $(tpl).each(function(){
-        var created = Nox.initBindings(this, context, newVars, created);
+        var childBindingSet = bindingSet.nested(this);
+
+        Nox.initBindings(this, context, newVars, childBindingSet);
         $(this).attr("data-id", entryId);
         $(el).append(this);
 
-        _.invoke(created, "updateFun");
+        if(!childBindingSet.hasBindingsDeep()){
+          bindingSet.removeBindingSet(childBindingSet);
+        }else{
+          childBindingSet.updateFun();
+        }
+
       });
     }
 
@@ -417,30 +481,4 @@ Nox.write.cache = {};Nox.parseAttributeNames = function(el){
   }
 
   return res || [];
-};
-
-Nox.BINDING_ID_ATTRIBUTE_NAMES = [ "data-binding-ids", "data-dependent-binding-ids" ];
-
-Nox.release = function(el){
-  // console.info("releasing", el);
-  var releasedBindingIds = [];
-
-  for(var i=0; i < Nox.BINDING_ID_ATTRIBUTE_NAMES.length; i++){
-    var attrName = Nox.BINDING_ID_ATTRIBUTE_NAMES[i];
-    releasedBindingIds.push(($(el).attr(attrName)||"").split(","));
-    $("["+attrName+"]", el).each(function(){
-      releasedBindingIds.push(($(this).attr(attrName)||"").split(","));
-    });
-  }
-
-  var bindingIds = _(releasedBindingIds).chain().flatten().reject(function(e){ return e === ""; }).value();
-
-
-  var bindings = _.select(Nox.bindings, function(e){ return _.include(bindingIds, e.id); });
-
-  _.invoke(bindings, "releaseFun");
-
-  Nox.bindings = _.reject(Nox.bindings, function(e){
-    return _.include(bindingIds, e.id);
-  });
 };

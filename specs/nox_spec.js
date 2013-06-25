@@ -1,37 +1,179 @@
 describe("Nox", function(){
 
-  beforeEach(function(){ Nox.bindings = []; });
-  afterEach(function(){ Nox.bindings = []; });
+  beforeEach(function(){ Nox.rootBindingSet = new Nox.BindingSet(null, null); });
+  afterEach(function(){ Nox.rootBindingSet = new Nox.BindingSet(null, null); });
+
+  describe("BindingSet", function(){
+
+    it("takes an element and parentBindingSet as contructor arguments and stores them as property", function(){
+      var el = {},
+          parent = {},
+          obj = new Nox.BindingSet(el, parent);
+
+      expect(obj.el).toBe(el);
+      expect(obj.parentBindingSet).toBe(parent);
+    });
+
+    it("creates a new BindingSet instance for the passed element, having this as parent and adds it to bindingsSets", function(){
+      var obj = new Nox.BindingSet(null, null),
+          el = {},
+          obj2 = obj.nested(el);
+
+      expect(obj2.el).toBe(el);
+      expect(obj2.parentBindingSet).toBe(obj);
+      expect(obj.bindingSets).toEqual([obj2]);
+    });
+
+    it("returns the BindingSet for the passed element or null if no BindingSet for this element exists", function(){
+
+      var el = {},
+          obj = new Nox.BindingSet(el, null);
+
+      expect(obj.findByEl(el)).toBe(obj);
+
+      var el2 = {},
+          obj2 = obj.nested(el2);
+
+      expect(obj.findByEl(el2)).toBe(obj2);
+
+      expect(obj.findByEl({})).toBe(null);
+    });
+
+    it("returns true if at least one direct binding exist", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.hasBindings()).toBe(false);
+      obj.bindings.push({});
+      expect(obj.hasBindings()).toBe(true);
+    });
+
+    it("returns true if at least one direct or nested binding exist", function(){
+      var obj = new Nox.BindingSet(null, null),
+          obj2 = obj.nested({});
+
+      expect(obj.hasBindingsDeep()).toBe(false);
+      obj2.bindings = [{}];
+      expect(obj.hasBindingsDeep()).toBe(true);
+    });
+
+    it("returns the number of direct bindings", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.numBindings()).toBe(0);
+      obj.bindings.push({});
+      expect(obj.numBindings()).toBe(1);
+    });
+
+    it("returns the number of direct and nested bindings", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.numBindingsDeep()).toBe(0);
+      obj.bindings.push({});
+      expect(obj.numBindingsDeep()).toBe(1);
+
+      var obj2 = obj.nested({});
+      obj2.bindings.push({});
+      expect(obj.numBindingsDeep()).toBe(2);
+    });
+
+    it("returns the number of direct bindingSets", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.numBindingSets()).toBe(0);
+      obj.nested({});
+      expect(obj.numBindingSets()).toBe(1);
+    });
+
+    it("adds a binding", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.bindings.length).toBe(0);
+      obj.addBinding({});
+      expect(obj.bindings.length).toBe(1);
+    });
+
+    it("removes a binding", function(){
+      var obj = new Nox.BindingSet(null, null),
+          binding = {};
+
+      obj.bindings = [binding];
+      obj.removeBinding(binding);
+
+      expect(obj.bindings.length).toBe(0);
+    });
+
+    it("removes a bindingSet", function(){
+      var obj = new Nox.BindingSet(null, null),
+          el = {},
+          obj2 = obj.nested(el);
+
+      obj.removeBindingSet(obj2);
+
+      expect(obj.bindingSets.length).toBe(0);
+    });
+
+    it("invokes updateFun on each binding and bindingSet", function(){
+      var obj = new Nox.BindingSet(null, null);
+
+      var bindingSpy = jasmine.createSpy("binding");
+      var bindingSetSpy = jasmine.createSpy("bindingSet");
+
+      obj.bindings = [{updateFun: bindingSpy}];
+      obj.bindingSets = [{updateFun: bindingSetSpy}];
+
+      obj.updateFun();
+
+      expect(bindingSpy).toHaveBeenCalled();
+      expect(bindingSetSpy).toHaveBeenCalled();
+    });
+
+    it("invokes releaseFun on each binding and bindingSet, removes itself from parent and cleans out properties", function(){
+      var parentSpy = jasmine.createSpy("parent.removeBinding");
+
+      var obj = new Nox.BindingSet(null, {removeBindingSet: parentSpy});
+
+      var bindingSpy = jasmine.createSpy("binding");
+      var bindingSetSpy = jasmine.createSpy("bindingSet");
+
+      obj.bindings = [{releaseFun: bindingSpy}];
+      obj.bindingSets = [{releaseFun: bindingSetSpy}];
+
+      obj.releaseFun();
+
+      expect(parentSpy).toHaveBeenCalled();
+      expect(bindingSpy).toHaveBeenCalled();
+      expect(bindingSetSpy).toHaveBeenCalled();
+
+      expect(obj.el).toBeNull();
+      expect(obj.parentBindingSet).toBeNull();
+      expect(obj.bindings).toBeNull();
+      expect(obj.bindingSets).toBeNull();
+    });
+
+    it("returns self if as rootBindingSet if no parentBindingSet, calls rootBindingSet on parentBindingSet otherwise", function(){
+      var obj = new Nox.BindingSet(null, null);
+
+      expect(obj.rootBindingSet()).toBe(obj);
+
+      var obj2 = obj.nested({});
+
+      expect(obj2.rootBindingSet()).toBe(obj);
+    });
+
+    it("returns this from updateFun", function(){
+      var obj = new Nox.BindingSet(null, null);
+      expect(obj.updateFun()).toBe(obj);
+    });
+
+  });
+
 
   describe("Eval", function(){
 
   });
 
-  describe("Lifecycle", function(){
+  describe("Lifecycle - Deprecated", function(){
     it("adds the binding to the active bindings when created", function(){
       var el = $("<span data-text='this.name'></span>")[0];
 
       Nox.initAndUpdateBindings({}, {}, el);
 
-      expect(Nox.bindings.length).toBe(1);
-    });
-
-    it("creates a unique id for each binding, attach it as data-binding-ids attribute and use it as key in active bindings list", function(){
-      var el = $("<span data-text='this.name'></span>")[0],
-          created = Nox.initAndUpdateBindings({}, {}, el);
-
-      // expect(Nox.bindings["0"]).toBe(created[0]);
-
-      expect($(el).attr("data-binding-ids")).toBe(Nox.bindings["0"].id);
-    });
-
-    it("removes the bindingId of the released element from active bindings", function(){
-      var el = $("<span data-text='this.name'></span>")[0];
-
-      Nox.initAndUpdateBindings({}, {}, el);
-      Nox.release(el);
-
-      expect(Nox.bindings.length).toBe(0);
+      expect(Nox.rootBindingSet.numBindingsDeep()).toBe(1);
     });
 
     it("will call the <bindingName>Release on release(element) before removing the active bindings of it", function(){
@@ -40,7 +182,7 @@ describe("Nox", function(){
       Nox.Bindings.textRelease = jasmine.createSpy("textRelease");
 
       Nox.initAndUpdateBindings({}, {}, el);
-      Nox.release(el);
+      Nox.rootBindingSet.findByEl(el).releaseFun();
 
       expect(Nox.Bindings.textRelease).toHaveBeenCalled();
     })
@@ -65,13 +207,13 @@ describe("Nox", function(){
         var el = $("<span data-text='this.name'></span>")[0],
             app = {name: "joe"};
 
-        Nox.initAndUpdateBindings(app, {}, el);
+        var bindingSet = Nox.initAndUpdateBindings(app, {}, el);
 
         expect($(el).text()).toBe("joe");
 
         app.name = "bob";
 
-        Nox.updateBindings();
+        bindingSet.updateFun();
 
         expect($(el).text()).toBe("bob");
       });
@@ -82,13 +224,13 @@ describe("Nox", function(){
         var el = $("<input data-value='this.name'/>")[0],
             app = {name: "joe"};
 
-        Nox.initAndUpdateBindings(app, {}, el);
+        var bindingSet = Nox.initAndUpdateBindings(app, {}, el);
 
         expect($(el).val()).toBe("joe");
 
         app.name = "bob";
 
-        Nox.updateBindings();
+        bindingSet.updateFun();
 
         expect($(el).val()).toBe("bob");
       });
@@ -124,13 +266,13 @@ describe("Nox", function(){
         var el = $("<ul data-loop='this.entries'><li data-text='entry.name'></li></ul>")[0],
             app = {entries: [{id: 1, name: "joe"}]};
 
-        Nox.initAndUpdateBindings(app, {}, el);
+        var bindingSet = Nox.initAndUpdateBindings(app, {}, el);
 
         expect($(el).children().length).toBe(1);
         expect($(el).children().html().toLowerCase()).toBe("joe");
 
         app.entries.push({id: 2, name: "bob"});
-        Nox.updateBindings();
+        bindingSet.updateFun();
 
         expect($(el).children().length).toBe(2);
         expect($($(el).children()[0]).html().toLowerCase()).toBe("joe");
@@ -150,10 +292,10 @@ describe("Nox", function(){
         var el = $("<ul data-loop='this.entries'><li data-text='entry.name'></li></ul>")[0],
             app = {entries: [{id: 1, name: "joe"}]};
 
-        Nox.initAndUpdateBindings(app, {}, el);
+        var bindingSet = Nox.initAndUpdateBindings(app, {}, el);
 
         app.entries = [];
-        Nox.updateBindings();
+        bindingSet.updateFun();
 
         expect($(el).children().length).toBe(0);
       });

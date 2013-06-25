@@ -1,3 +1,3 @@
 $(document).on("ajaxComplete", function(){
-  Nox.updateBindings();
+  Nox.rootBindingSet.updateFun();
 });

@@ -57,12 +57,29 @@
       app.entries.push({id: _.uniqueId(), name: "xxx", done: false});
     }
 
-    Nox.initAndUpdateBindings(app);
+    app.createData = function(){
+      for(var i=0; i < 100; i++){
+        this.entries.push({id: _.uniqueId(), name: "xxx"+i, done: false});
+      }
+    };
+
+    app.freeData = function(){
+      this.entries = [];
+    };
+
+    $(function(){
+      Nox.initAndUpdateBindings(app);
+    });
   </script>
 </head>
 <body>
 
   <p>we have {{this.entries.length}} entries ({{this.numDone()}} done)</p>
+
+  <div>
+    <a href="#" data-click="this.createData()">create</a>
+    <a href="#" data-click="this.freeData()">free</a>
+  </div>
 
   
 <!--  data-show="this.name.length > 10" -->

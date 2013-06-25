@@ -117,7 +117,8 @@ Nox.Bindings.loopUpdate = function(el, value){
       entryIds = _.map(entries, function(e){ return e.id + ""; }),
       tpl = this.tpl,
       context = this.context,
-      vars = this.vars;
+      vars = this.vars,
+      bindingSet = this.bindingSet;
 
 
   var childIds = _.map($("> [data-id]", el).toArray(), function(e){ return $(e).attr("data-id"); });
@@ -127,8 +128,7 @@ Nox.Bindings.loopUpdate = function(el, value){
     if(!_.include(entryIds, childId)){
       // console.info("remove existing dom child ("+childId+") which no longer exist in model")
       var childEl = $("> [data-id='"+childId+"']", el)[0];
-      Nox.release(childEl);
-      $(childEl).remove();
+      Nox.rootBindingSet.findByEl(childEl).releaseFun();
     }
   }
 
@@ -141,11 +141,18 @@ Nox.Bindings.loopUpdate = function(el, value){
       newVars[as] = entries[i];
 
       $(tpl).each(function(){
-        var created = Nox.initBindings(this, context, newVars, created);
+        var childBindingSet = bindingSet.nested(this);
+
+        Nox.initBindings(this, context, newVars, childBindingSet);
         $(this).attr("data-id", entryId);
         $(el).append(this);
 
-        _.invoke(created, "updateFun");
+        if(!childBindingSet.hasBindingsDeep()){
+          bindingSet.removeBindingSet(childBindingSet);
+        }else{
+          childBindingSet.updateFun();
+        }
+
       });
     }
 
