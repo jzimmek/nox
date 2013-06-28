@@ -9,6 +9,9 @@
     .highlight-true {
       background: green;
     }
+    .error-true {
+      color: red;
+    }
   </style>
   <script type="text/javascript">
 
@@ -16,26 +19,17 @@
       this.email = "";
       this.password = "";
 
-      // this.validator = new Nox.Validator(this);
-      
-      // this.validator.field("email", true).min(3).min(20).pattern(/@/);
-
-      // this.validator.field("password", true);
-
-      // this.validator.fun("virtualField", function(){
-      //   if(this.active)
-      //     return null;
-
-      //   return "not_active";
-      // });
+      this.validator = new Nox.Validator();
+      this.validator.field("email", true).length({min: 3, max: 10});
     };
 
-    // LoginForm.prototype.submit = function(){
-      
-    //   if(this.validator.validate()){
-    //     // call server
-    //   }
-    // };
+    LoginForm.prototype.submit = function(){
+      if(this.validator.validate(this)){
+        console.info("validate true");
+      }else{
+        console.info("validate false");
+      }
+    };
 
     var app = {
           name: "joe",
@@ -80,6 +74,17 @@
     <a href="#" data-click="this.createData()">create</a>
     <a href="#" data-click="this.freeData()">free</a>
   </div>
+
+  <hr/>
+
+  <form>
+    <!--label class="error-{{this.loginForm.validator.isInvalid('email')}}">Email</label-->
+    <label data-error-email="this.loginForm.validator">Email</label>
+    <input type="text" data-value="this.loginForm.email"/>
+    <button data-click="this.loginForm.submit()">submit</button>
+  </form>
+
+  <hr/>
 
   
 <!--  data-show="this.name.length > 10" -->

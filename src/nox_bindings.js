@@ -89,6 +89,34 @@ Nox.Bindings.textUpdate = function(el, value){
   $(el).text(value);
 };
 
+Nox.Bindings.errorFactory = function(expr, dynamic){
+  return "{validator: '"+expr+"', key: '"+dynamic+"'}";
+};
+
+Nox.Bindings.errorValue = function(expr, context, vars){
+  var res = Nox.read(expr, context, vars);
+  return {
+    validator: Nox.read(res.validator, context, vars),
+    key: res.key
+  };
+};
+
+Nox.Bindings.errorState = function(value){
+  return (value.validator.validator || value.validator).errors
+};
+
+// Nox.Bindings.errorInit = function(el, mutate){
+//   $(el).removeClass("error-true").addClass("error-false");
+// };
+
+Nox.Bindings.errorUpdate = function(el, value){
+  var validator = value.validator.validator || value.validator,
+      key = value.key,
+      res = validator.isInvalid(key);
+
+  $(el).removeClass("error-"+(!res)).addClass("error-"+res);
+};
+
 Nox.Bindings.loopFactory = function(expr, dynamic){
   return "{entries: '"+expr+"', as: '"+dynamic+"'}";
 };
@@ -114,7 +142,7 @@ Nox.Bindings.loopInit = function(el, mutate){
 Nox.Bindings.loopUpdate = function(el, value){
   var entries = value.entries,
       as = value.as,
-      entryIds = _.map(entries, function(e){ return e.id + ""; }),
+      entryIds = _.map(entries, function(e){ return Nox.idOf(e.id); }),
       tpl = this.tpl,
       context = this.context,
       vars = this.vars,
@@ -133,7 +161,7 @@ Nox.Bindings.loopUpdate = function(el, value){
   }
 
   for(var i=0; i < entries.length; i++){
-    var entryId = entries[i].id + "";
+    var entryId = Nox.idOf(entries[i].id);
 
     if(!_.include(childIds, entryId)){
       // console.info("create dom child ("+entryId+") which is new in model");

@@ -1,5 +1,43 @@
 var Nox = {};
 
+Nox.idOf = function(obj){
+  if(obj === null || obj === undefined)
+    throw "invalid argument";
+
+  var type = typeof(obj);
+
+  if(type === "string" || type === "number" || type === "boolean")
+    return obj.toString();
+
+  if(type === "object")
+    return Nox.idOf((typeof(obj.id) === "function") ? obj.id() : obj.id);
+
+  throw "could not determine of: " + obj;
+};
+
+Nox.translateInputValue = function(input){
+  if(input === undefined)
+    return null;
+
+  if(_.isString(input)){
+
+    if(input.match(/^[-+]?[0-9]*\.?[0-9]+$/))
+      return parseFloat(input);
+    
+    if(input.match(/^[-+]?[0-9]+$/))
+      return parseInt(input, 10);
+    
+    if(input === "true" || input == "yes")
+      return true;
+
+    if(input === "false" || input == "no")
+      return false;
+
+  }
+
+  return input;
+};
+
 Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes, bindingSet){
   var bindingId = (_.uniqueId() + 1) + "",
       bindingContext = {

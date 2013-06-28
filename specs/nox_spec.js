@@ -3,6 +3,56 @@ describe("Nox", function(){
   beforeEach(function(){ Nox.rootBindingSet = new Nox.BindingSet(null, null); });
   afterEach(function(){ Nox.rootBindingSet = new Nox.BindingSet(null, null); });
 
+
+  it("translateInputValue", function(){
+
+    expect(Nox.translateInputValue(null)).toBeNull();
+    expect(Nox.translateInputValue(undefined)).toBeNull();
+
+    expect(Nox.translateInputValue("100")).toBe(100);
+    expect(Nox.translateInputValue("-100")).toBe(-100);
+
+    expect(Nox.translateInputValue("100.1")).toBe(100.1);
+    expect(Nox.translateInputValue("-100.1")).toBe(-100.1);
+
+    expect(Nox.translateInputValue("true")).toBe(true);
+    expect(Nox.translateInputValue("yes")).toBe(true);
+    expect(Nox.translateInputValue("false")).toBe(false);
+    expect(Nox.translateInputValue("no")).toBe(false);
+  });
+
+  it("idOf", function(){
+    expect(Nox.idOf(1)).toBe("1");
+    expect(Nox.idOf(1.1)).toBe("1.1");
+    expect(Nox.idOf("abc")).toBe("abc");
+    expect(Nox.idOf(true)).toBe("true");
+    expect(Nox.idOf(false)).toBe("false");
+
+    expect(function(){
+      Nox.idOf(null);
+    }).toThrow("invalid argument");
+
+    expect(function(){
+      Nox.idOf(undefined);
+    }).toThrow("invalid argument");
+
+    var origIdOf = Nox.idOf;
+
+    spyOn(Nox, "idOf");
+
+    origIdOf({id: 100});
+
+    expect(Nox.idOf).toHaveBeenCalledWith(100);
+
+    Nox.idOf.reset();
+
+    origIdOf({id: function(){ return 10; }});
+
+    expect(Nox.idOf).toHaveBeenCalledWith(10);
+  });
+
+
+
   describe("BindingSet", function(){
 
     it("takes an element and parentBindingSet as contructor arguments and stores them as property", function(){
@@ -158,6 +208,185 @@ describe("Nox", function(){
     it("returns this from updateFun", function(){
       var obj = new Nox.BindingSet(null, null);
       expect(obj.updateFun()).toBe(obj);
+    });
+
+  });
+
+
+  describe("Validator", function(){
+
+    it("new", function(){
+      expect(new Nox.Validator().rules).toEqual([]);
+      expect(new Nox.Validator().errors).toEqual({});
+    });
+
+    it("rule", function(){
+      var v = new Nox.Validator();
+
+      var fun = (function(){});
+      v.rule("key", "rule", fun);
+
+      expect(v.rules).toEqual([["key", "rule", fun]]);
+    });
+
+    it("field", function(){
+      var v = new Nox.Validator();
+
+      spyOn(v, "rule");
+
+      var f = v.field("myfield", false); // mandatory
+      expect(v.rule).toHaveBeenCalledWith("myfield", "mandatory", Nox.Validator.fieldMandatoryFun);
+
+      v.rule.reset();
+
+      f = v.field("myfield", true); // optional
+      expect(v.rule).not.toHaveBeenCalledWith("myfield", "mandatory", Nox.Validator.fieldMandatoryFun);
+    });
+
+    it("isValid", function(){
+      var v = new Nox.Validator();
+      
+      v.errors["email"] = null;
+      expect(v.isValid("email")).toBe(true);
+
+      v.errors["email"] = "xyz";
+      expect(v.isValid("email")).toBe(false);
+    });
+
+    it("isInvalid", function(){
+      var v = new Nox.Validator();
+      
+      v.errors["email"] = "xyz";
+      expect(v.isInvalid("email")).toBe(true);
+
+      v.errors["email"] = null;
+      expect(v.isInvalid("email")).toBe(false);
+    });
+
+    it("#fieldMandatoryFun", function(){
+      spyOn(Nox.ValidatorField, "isBlank");
+      Nox.Validator.fieldMandatoryFun(123);
+      expect(Nox.ValidatorField.isBlank).toHaveBeenCalledWith(123);
+    });
+
+    describe("ValidatorField", function(){
+
+      it("new", function(){
+        var v = new Nox.Validator();
+        var f = new Nox.ValidatorField("myfield", v);
+
+        expect(f.name).toEqual("myfield");
+        expect(f.validator).toBe(v);
+      });
+
+      it("#isBlank", function(){
+        expect(Nox.ValidatorField.isBlank("")).toBe(true);
+        expect(Nox.ValidatorField.isBlank("joe")).toBe(false);
+        expect(Nox.ValidatorField.isBlank(123)).toBe(false);
+        expect(Nox.ValidatorField.isBlank(undefined)).toBe(true);
+        expect(Nox.ValidatorField.isBlank(null)).toBe(true);
+      });
+
+      it("minLength", function(){
+        var v = new Nox.Validator();
+
+        spyOn(v, "rule").andCallThrough();
+
+        var f = new Nox.ValidatorField("myfield", v);
+        var res = f.minLength(3);
+
+        expect(res).toBe(f);
+        expect(v.rule).toHaveBeenCalled();
+
+        var args = v.rule.mostRecentCall.args;
+
+        expect(args[0]).toEqual("myfield");
+        expect(args[1]).toEqual("minLength");
+
+        var fun = args[2];
+
+        expect(fun(null)).toBeUndefined();
+        expect(fun("")).toBeUndefined();
+        expect(fun(undefined)).toBeUndefined();
+
+        expect(fun("joe")).toBe(true);
+        expect(fun("jo")).toBe(false);
+      });
+
+      it("maxLength", function(){
+        var v = new Nox.Validator();
+
+        spyOn(v, "rule").andCallThrough();
+
+        var f = new Nox.ValidatorField("myfield", v);
+        var res = f.maxLength(3);
+
+        expect(res).toBe(f);
+        expect(v.rule).toHaveBeenCalled();
+
+        var args = v.rule.mostRecentCall.args;
+
+        expect(args[0]).toEqual("myfield");
+        expect(args[1]).toEqual("maxLength");
+
+        var fun = args[2];
+
+        expect(fun(null)).toBeUndefined();
+        expect(fun("")).toBeUndefined();
+        expect(fun(undefined)).toBeUndefined();
+
+        expect(fun("joe")).toBe(true);
+        expect(fun("joey")).toBe(false);
+      });
+
+      it("length", function(){
+        var v = new Nox.Validator();
+        var f = new Nox.ValidatorField("myfield", v);
+
+        spyOn(f, "minLength");
+        spyOn(f, "maxLength");
+
+        // ---
+
+        f.length({});
+
+        expect(f.minLength).not.toHaveBeenCalled();
+        expect(f.maxLength).not.toHaveBeenCalled();
+
+        f.minLength.reset();
+        f.maxLength.reset();
+
+        // ---
+
+        f.length({min: 3});
+
+        expect(f.minLength).toHaveBeenCalledWith(3);
+        expect(f.maxLength).not.toHaveBeenCalled();
+
+        f.minLength.reset();
+        f.maxLength.reset();
+
+        // ---
+
+        f.length({max: 3});
+
+        expect(f.minLength).not.toHaveBeenCalled();
+        expect(f.maxLength).toHaveBeenCalledWith(3);
+
+        f.minLength.reset();
+        f.maxLength.reset();
+
+        // ---
+
+        f.length({min: 1, max: 3});
+
+        expect(f.minLength).toHaveBeenCalledWith(1);
+        expect(f.maxLength).toHaveBeenCalledWith(3);
+
+        f.minLength.reset();
+        f.maxLength.reset();
+
+      });
     });
 
   });

@@ -1,5 +1,45 @@
 var Nox = {};
 
+Nox.idOf = function(obj){
+
+  if(obj === null || obj === undefined)
+    throw "invalid argument";
+
+
+  var type = typeof(obj);
+
+  if(type === "string" || type === "number" || type === "boolean")
+    return obj.toString();
+
+  if(type === "object")
+    return Nox.idOf((typeof(obj.id) === "function") ? obj.id() : obj.id);
+
+  throw "could not determine of: " + obj;
+};
+
+Nox.translateInputValue = function(input){
+  if(input === undefined)
+    return null;
+
+  if(_.isString(input)){
+
+    if(input.match(/^[-+]?[0-9]*\.?[0-9]+$/))
+      return parseFloat(input);
+    
+    if(input.match(/^[-+]?[0-9]+$/))
+      return parseInt(input, 10);
+    
+    if(input === "true" || input == "yes")
+      return true;
+
+    if(input === "false" || input == "no")
+      return false;
+
+  }
+
+  return input;
+};
+
 Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContextAttributes, bindingSet){
   var bindingId = (_.uniqueId() + 1) + "",
       bindingContext = {
@@ -368,6 +408,34 @@ Nox.Bindings.textUpdate = function(el, value){
   $(el).text(value);
 };
 
+Nox.Bindings.errorFactory = function(expr, dynamic){
+  return "{validator: '"+expr+"', key: '"+dynamic+"'}";
+};
+
+Nox.Bindings.errorValue = function(expr, context, vars){
+  var res = Nox.read(expr, context, vars);
+  return {
+    validator: Nox.read(res.validator, context, vars),
+    key: res.key
+  };
+};
+
+Nox.Bindings.errorState = function(value){
+  return (value.validator.validator || value.validator).errors
+};
+
+// Nox.Bindings.errorInit = function(el, mutate){
+//   $(el).removeClass("error-true").addClass("error-false");
+// };
+
+Nox.Bindings.errorUpdate = function(el, value){
+  var validator = value.validator.validator || value.validator,
+      key = value.key,
+      res = validator.isInvalid(key);
+
+  $(el).removeClass("error-"+(!res)).addClass("error-"+res);
+};
+
 Nox.Bindings.loopFactory = function(expr, dynamic){
   return "{entries: '"+expr+"', as: '"+dynamic+"'}";
 };
@@ -393,7 +461,7 @@ Nox.Bindings.loopInit = function(el, mutate){
 Nox.Bindings.loopUpdate = function(el, value){
   var entries = value.entries,
       as = value.as,
-      entryIds = _.map(entries, function(e){ return e.id + ""; }),
+      entryIds = _.map(entries, function(e){ return Nox.idOf(e.id); }),
       tpl = this.tpl,
       context = this.context,
       vars = this.vars,
@@ -412,7 +480,7 @@ Nox.Bindings.loopUpdate = function(el, value){
   }
 
   for(var i=0; i < entries.length; i++){
-    var entryId = entries[i].id + "";
+    var entryId = Nox.idOf(entries[i].id);
 
     if(!_.include(childIds, entryId)){
       // console.info("create dom child ("+entryId+") which is new in model");
@@ -481,4 +549,88 @@ Nox.write.cache = {};Nox.parseAttributeNames = function(el){
   }
 
   return res || [];
+};Nox.ValidatorField = function(name, validator){
+  this.name = name;
+  this.validator = validator;
+};
+
+Nox.ValidatorField.isBlank = function(value){
+  return value === null || value === undefined || value === "";
+};
+
+Nox.ValidatorField.prototype.length = function(opts){
+  if(opts.min)  this.minLength(opts.min);
+  if(opts.max)  this.maxLength(opts.max);
+};
+
+Nox.ValidatorField.prototype.minLength = function(length){
+  this.validator.rule(this.name, "minLength", function(value){
+    if(Nox.ValidatorField.isBlank(value))
+      return;
+
+    return value.length >= length;
+  });
+
+  return this;
+};
+
+Nox.ValidatorField.prototype.maxLength = function(length){
+  this.validator.rule(this.name, "maxLength", function(value){
+    if(Nox.ValidatorField.isBlank(value))
+      return;
+
+    return value.length <= length;
+  });
+
+  return this;
+};
+
+Nox.Validator = function(){
+  this.rules = [];
+  this.errors = {};
+};
+
+Nox.Validator.prototype.isValid = function(key){
+  return !this.errors[key];
+};
+
+Nox.Validator.prototype.isInvalid = function(key){
+  return !!this.errors[key];
+};
+
+Nox.Validator.prototype.validate = function(obj){
+  this.errors = {};
+
+  for(var i=0; i < this.rules.length; i++){
+    var key = this.rules[i][0],
+        rule = this.rules[i][1],
+        fun = this.rules[i][2];
+
+    if(this.errors[key])
+      continue;
+
+    var value = obj[key];
+
+    if(fun(value) === false)
+      this.errors[key] = rule;
+  }
+
+  return _.size(this.errors) == 0;
+};
+
+Nox.Validator.prototype.rule = function(key, rule, fun){
+  this.rules.push([key, rule, fun]);
+};
+
+Nox.Validator.fieldMandatoryFun = function(value){
+  return !Nox.ValidatorField.isBlank(value);
+};
+
+Nox.Validator.prototype.field = function(name, optional){
+  var f = new Nox.ValidatorField(name, this);
+
+  if(!optional)
+    this.rule(name, "mandatory", Nox.Validator.fieldMandatoryFun);
+
+  return f;
 };
