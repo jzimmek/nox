@@ -15,6 +15,12 @@
   </style>
   <script type="text/javascript">
 
+    var PRIOS = [
+      "low",
+      "normal",
+      "high"
+    ];
+
     var LoginForm = function(){
       this.email = "";
       this.password = "";
@@ -83,6 +89,12 @@
     <input type="text" data-value="this.loginForm.email"/>
     <button data-click="this.loginForm.submit()">submit</button>
   </form>
+
+  <hr/>
+
+  <ul data-loop="PRIOS">
+    <li>{{entry}}</li>
+  </ul>
 
   <hr/>
 

@@ -1,10 +1,8 @@
 var Nox = {};
 
 Nox.idOf = function(obj){
-
   if(obj === null || obj === undefined)
     throw "invalid argument";
-
 
   var type = typeof(obj);
 
@@ -57,10 +55,12 @@ Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContex
     bindingImpl.init.call(bindingContext, el, mutate);
 
   var f = (bindingImpl.update === Nox.defaultUpdate) ? Nox.defaultUpdate : (function(){
-    var value = bindingImpl.value(expr, context, vars);
+    var value = bindingImpl.value(expr, context, vars),
+        state = bindingImpl.state(value);
 
-    if(!_.isEqual(value, bindingContext.state)){
-      bindingContext.state = bindingImpl.state(value);
+    if(!_.isEqual(state, bindingContext.state)){
+      // console.info("!!!! ", expr, state, bindingContext.state);
+      bindingContext.state = state;
       bindingImpl.update.call(bindingContext, el, value);
     }
   });
@@ -447,8 +447,8 @@ Nox.Bindings.loopValue = function(expr, context, vars){
   else                return {entries: Nox.read(res.entries, context, vars), as: res.as || "entry"};
 }
 
-Nox.Bindings.loopState = function(exprValue){
-  return _.pluck(exprValue.entries, "id");
+Nox.Bindings.loopState = function(value){
+  return _.map(value.entries, function(e){ return Nox.idOf(e); });
 };
 
 Nox.Bindings.loopInit = function(el, mutate){
@@ -461,7 +461,7 @@ Nox.Bindings.loopInit = function(el, mutate){
 Nox.Bindings.loopUpdate = function(el, value){
   var entries = value.entries,
       as = value.as,
-      entryIds = _.map(entries, function(e){ return Nox.idOf(e.id); }),
+      entryIds = _.map(entries, function(e){ return Nox.idOf(e); }),
       tpl = this.tpl,
       context = this.context,
       vars = this.vars,
@@ -480,7 +480,7 @@ Nox.Bindings.loopUpdate = function(el, value){
   }
 
   for(var i=0; i < entries.length; i++){
-    var entryId = Nox.idOf(entries[i].id);
+    var entryId = Nox.idOf(entries[i]);
 
     if(!_.include(childIds, entryId)){
       // console.info("create dom child ("+entryId+") which is new in model");

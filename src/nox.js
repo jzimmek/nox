@@ -55,10 +55,12 @@ Nox.createBinding = function(expr, el, context, vars, bindingImpl, bindingContex
     bindingImpl.init.call(bindingContext, el, mutate);
 
   var f = (bindingImpl.update === Nox.defaultUpdate) ? Nox.defaultUpdate : (function(){
-    var value = bindingImpl.value(expr, context, vars);
+    var value = bindingImpl.value(expr, context, vars),
+        state = bindingImpl.state(value);
 
-    if(!_.isEqual(value, bindingContext.state)){
-      bindingContext.state = bindingImpl.state(value);
+    if(!_.isEqual(state, bindingContext.state)){
+      // console.info("!!!! ", expr, state, bindingContext.state);
+      bindingContext.state = state;
       bindingImpl.update.call(bindingContext, el, value);
     }
   });
