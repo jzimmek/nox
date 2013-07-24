@@ -1,0 +1,266 @@
+<html>
+<head>
+  <title></title>
+  <meta http-equiv="X-UA-Compatible" content="IE=8" />
+  <script type="text/javascript" src="vendor/underscore.js"></script>
+  <script type="text/javascript" src="vendor/jquery-1.9.1.min.js"></script>
+  <script type="text/javascript" src="vendor/moment-2.1.0.js"></script>
+  <script type="text/javascript" src="nox.js"></script>
+  <style type="text/css">
+    .error {
+      border: 1px solid red;
+    }
+  </style>
+
+  <script type="text/javascript">
+
+    var Product = function(){
+      this.id = _.uniqueId();
+      this.title = "Product " + this.id;
+    };
+
+    var User = function(){
+      this.id = _.uniqueId();
+      this.username = "user" + this.id;
+    };
+
+    var loadUsers = function(fun, context){
+      setTimeout(function(){
+        fun.call(context||{}, [
+          new User(),
+          new User(),
+          new User()
+        ]);
+      }, 100);
+    };
+
+    function validateFirstname(value){
+      if(!value)                  return "firstname.mandatory"
+      else if(value.length < 3)   return "firstname.minlength"
+      else if(value.length > 10)  return "firstname.maxlength"
+      else                        return null
+    }
+
+    function validateLastname(value){
+      if(!value)                  return "lastname.mandatory"
+      else if(value.length < 3)   return "lastname.minlength"
+      else if(value.length > 10)  return "lastname.maxlength"
+      else                        return null
+    }
+
+    $(function(){
+
+      new Nox.Scope(document, function(model){
+
+        model.username = "joe";
+        model.screen = "about";
+
+        this.resolve("username", model, "username");
+
+        this.scope("#nav", function(){
+          this.on("a", "click", function(e){
+            e.preventDefault();
+            model.screen = $(e.target).attr("href").substring(1);
+          });
+        });
+
+        this.toggle("#about", model, "this.screen == 'about'", function(){
+          this.text("span.username", model, "username");
+        });
+
+        this.toggle("#test", model, "this.screen == 'test'", function(testModel){
+          testModel.age = 30;
+
+          this.text("span.username", model, "username")
+              .value("input.username", model, "username")
+              .text("span.age", testModel, "age")
+              .value("input.age", testModel, "age");
+        });
+
+        this.toggle("#top10", model, "this.screen == 'top10'", function(top10Model){
+
+          top10Model.entries = [];
+
+          for(var i=0; i < 10; i++){
+            top10Model.entries.push(new Product());
+          }
+
+          this.loop("ul", top10Model, "entries", function(entryModel, entry){
+
+            this.text(".title", entry, "title")
+                .value(".title", entry, "title")
+                .value(".username", model, "username")
+                .on(".del", "click", function(e){
+                  e.preventDefault();
+                  top10Model.entries = _.without(top10Model.entries, entry);
+                });
+          });
+
+        });
+
+        this.toggle("#register", model, "this.screen == 'register'", function(registerModel){
+          
+          registerModel.firstname = "";
+          registerModel.lastname = "";
+          registerModel.error = {};
+          registerModel.message = "";
+
+          this.message(".message", registerModel, "message");
+
+          this.on("form", "submit", function(e){
+            e.preventDefault();
+
+            registerModel.error.firstname = validateFirstname(registerModel.firstname);
+            registerModel.error.lastname = validateLastname(registerModel.lastname);
+
+            registerModel.message = "Register successful!!";
+
+            // console.info(registerModel);
+
+            return false;
+          });
+
+          this.error("label + .firstname", registerModel, "firstname");
+          this.error("label + .lastname", registerModel, "lastname");
+
+          this.value(".firstname", registerModel, "firstname");
+          this.value(".lastname", registerModel, "lastname");
+
+          this.inlineEdit("div.lastname", registerModel, "lastname");
+
+          this.on(".firstname", "change blur keyup", function(){
+            registerModel.error.firstname = validateFirstname(registerModel.firstname);
+          });
+
+        });
+
+        this.toggle("#users", model, "this.screen == 'users'", function(usersModel){
+
+          usersModel.users = [];
+
+          loadUsers(function(users){
+            console.info("---", users);
+            usersModel.users = users;
+            this.update();
+          }, this);
+
+          this.loop("ul", usersModel, "users", function(userModel, user){
+
+            var $li = $(this.selector),
+                $ul = $($li.parent());
+
+//             this.on($li, "click", function(e){
+//               var el = e.target,
+//                   width = $(el).width(),
+//                   height = $(el).height();
+
+//               $li.clone().appendTo($ul);
+
+//                   // .empty()
+//                   // .css("width", width + "px")
+//                   // .css("height", height+"px")
+//                   // .css("background", "red");
+
+//               // console.info($(box).parent().html());
+// // 
+//             });
+
+            this.resolve("username", user, "username");
+            this.value("input[name='username']", user, "username");
+
+            var width = $li.width(),
+                height = $li.height();
+
+            var droppable = $li .clone()
+                                .empty()
+                                .css("width", width + "px")
+                                .css("height", height+"px")
+                                .css("background", "red");
+
+            droppable.insertBefore($li)
+
+          });
+
+        });
+
+
+      });
+    });
+  </script>
+</head>
+<body>
+
+  <div id="nav">
+    <a href="#about">about</a>
+    <a href="#test">test</a>
+    <a href="#top10">top10</a>
+    <a href="#register">register</a>
+    <a href="#users">users</a>
+  </div>
+
+  <div id="about">
+    <h1>about</h1>
+    <span class="username">xyz</span>
+  </div>
+
+  <div id="top10">
+    <h1>top10 - {{username}} {{age}}</h1>
+    <ul>
+      <li>
+        <strong>{{username}}</strong>
+        <span class="title"></span>
+        <input class="title" type="text"/>
+        <input class="username" type="text"/>
+        <a href="#" class="del">del</a>
+      </li>
+    </ul>
+  </div>
+
+  <div id="test">
+    <h1>test {{username}}</h1>
+    <p>
+      <span class="username">xyz</span>
+      <input class="username" type="text"/>
+    </p>
+    <p>
+      <span class="age">xyz</span>
+      <input class="age" type="text"/>
+    </p>
+  </div>
+
+  <div id="register">
+    <h1>register</h1>
+    <h2 class="message">yeah</h2>
+    <form>
+      <div>
+        <label>firstname</label>
+        <input type="text" class="firstname"/>
+      </div>
+      <div>
+        <label>lastname</label>
+        <input type="text" class="lastname"/>
+      </div>
+      <div>
+        <label>lastname</label>
+        <div class="lastname" style="display:inline-block;"></div>
+      </div>
+      <div>
+        <button>register</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="users">
+    <h1>users</h1>
+    <ul>
+      <li>
+        <strong>{{username}}</strong>
+        <form>
+          <input type="text" name="username"/>
+        </form>
+      </li>
+    </ul>
+  </div>
+
+</body>
+</html>
