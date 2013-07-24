@@ -4,26 +4,40 @@ Nox is a client-side library focusing on two way data-binding while leveraging e
 
 ## Building Blocks
 
-The building blocks in Nox are "Scope" and "Watch".
+The building blocks in Nox are "Scope", "Resolve", "Binding" and "Watch".
 
 ### Scope
 
 A scope in Nox is a combination of an CSS selector and a javascript object model. The lifecyclye of the CSS selector and object model are tightly coupled. Removing the CSS selector elemets will destroy the object model and vice versa.
 
-#### Hello World
-
 		$(function(){
 		  new Nox.Scope(document, function(model){
 		  	model.username = "joe";
 
-		  	this.text("span", model, "username");
+		  	this.scope("header", function(headerModel){
+
+		  	});
+
+		  	...
+
+		  })
+		})
+
+### Resolve
+
+A resolve let you use common template like variable syntax {{variable}} in the DOM for text (and attribute nodes - coming soon). Resolves are implemented with "watch". The resolve variable updates whenever the underlying object model is changed.
+
+		$(function(){
+		  new Nox.Scope(document, function(model){
+		  	model.username = "joe";
+		  	this.resolve("name", model, "username");
 		  })
 		})
 
 		...
 
 		<body>
-			hello <span>username</span>
+			hello {{name}}
 		</body>
 
 
@@ -48,6 +62,31 @@ Or an expression:
 		Nox.watch(user, "this.email.length > 10", function(newValue){
 		  // invoked whenever result of this.email.length > 10 changed
 		});
+
+
+### Binding
+
+A binding is a function which is applied to a scope and glues together a DOM selector and a javascript object.
+
+		$(function(){
+		  new Nox.Scope(document, function(model){
+		  	model.username = "joe";
+
+		  	this.text("span", model, "username");
+		  	this.value("input", model, "username");
+		  })
+		})
+
+		...
+
+		<body>
+			hello <span>username</span>
+
+			<form>
+				<input type="text"/>
+			</form>
+		</body>
+
 
 
 ## Credits
