@@ -5,10 +5,25 @@
   <script type="text/javascript" src="vendor/underscore.js"></script>
   <script type="text/javascript" src="vendor/jquery-1.9.1.min.js"></script>
   <script type="text/javascript" src="vendor/moment-2.1.0.js"></script>
+  <script type="text/javascript" src="vendor/jquery.transit.js"></script>
   <script type="text/javascript" src="nox.js"></script>
   <style type="text/css">
     .error {
       border: 1px solid red;
+    }
+
+    #courses ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    #courses ul li {
+      float: left;
+      width: 200px;
+      height: 200px;
+      margin-right: 10px;
+      background: lightgray;
     }
   </style>
 
@@ -134,6 +149,37 @@
 
         });
 
+        this.toggle("#courses", model, "this.screen == 'courses'", function(coursesModel){
+
+          coursesModel.entries = [
+            {id: _.uniqueId(), title: "Bla 1", editMode: false},
+            {id: _.uniqueId(), title: "Bla 2", editMode: false},
+            {id: _.uniqueId(), title: "Bla 3", editMode: false}
+          ];
+
+          this.loop("ul", coursesModel, "entries", function(courseModel, course){
+
+            this.resolve("title", course, "title");
+            this.resolve("toggleEditLabel", course, function(){ 
+              return this.editMode ? "exit edit" : "edit";
+            });
+
+            this.transition(this.selector, course, "editMode", {rotate: "+=360deg", duration: 500});
+
+            this.toggle(".title .edit-true", course, "this.editMode == true");
+            this.toggle(".title .edit-false", course, "this.editMode == false");
+
+            this.value(".title input", course, "title");
+
+            this.on("a.edit", "click", function(e){
+              e.preventDefault();
+              course.editMode = !course.editMode;
+            });
+
+          });
+
+        });
+
         this.toggle("#users", model, "this.screen == 'users'", function(usersModel){
 
           usersModel.users = [];
@@ -196,6 +242,7 @@
     <a href="#top10">top10</a>
     <a href="#register">register</a>
     <a href="#users">users</a>
+    <a href="#courses">courses</a>
   </div>
 
   <div id="about">
@@ -260,6 +307,24 @@
         </form>
       </li>
     </ul>
+  </div>
+
+  <div id="courses">
+    <h1>courses</h1>
+    <ul>
+      <li>
+        <h1>oh yeah</h1>
+        <div class="title">
+          <p class="edit-false">{{title}}</p>
+          <input type="text" class="edit-true"/>
+        </div>
+        <div>
+          (<a href="#" class="edit">{{toggleEditLabel}}</a>)
+        </div>
+      </li>
+    </ul>
+
+
   </div>
 
 </body>

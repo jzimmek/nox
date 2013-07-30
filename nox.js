@@ -138,9 +138,12 @@ Nox.Resolve.resolveVariables = function(scope, selector, resolves){
       return memo;
     }, {});
 
+
+
     for(var i=0, varName; (varName = varNames[i]) !== undefined; i++){
       (function(varName){
-        var resolve = _.detect(resolves, function(e){ return e[2] == varName; });
+
+        var resolve = _.detect(resolves, function(e){ return e[0] == varName; });
 
         if(!resolve)
           return;
@@ -575,6 +578,16 @@ Nox.Scope.prototype.message = function(selector, obj, field){
       });
     }
     else $el.hide();
+  });
+
+  return this;
+};
+
+Nox.Scope.prototype.transition = function(selector, obj, field, opts){
+  var $el = this.$(selector);
+
+  this.watch(obj, field, function(newValue){
+    $el.transition(opts);
   });
 
   return this;
