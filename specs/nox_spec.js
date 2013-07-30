@@ -206,6 +206,27 @@ describe("Nox", function(){
     });
   });
 
+  describe("Error", function(){
+
+    it("isEmpty", function(){
+      expect((new Nox.Error()).isEmpty()).toBe(true);
+
+      var err = new Nox.Error();
+      err.name = "invalid";
+
+      expect(err.isEmpty()).toBe(false);
+    });
+
+    it("clear", function(){
+      var err = new Nox.Error();
+      err.name = "invalid";
+
+      err.clear();
+      expect(err.isEmpty()).toBe(true);
+    });
+
+  });
+
   describe("Scope", function(){
 
     it("new Scope", function(){
@@ -360,7 +381,7 @@ describe("Nox", function(){
         
         expect($el.html()).toBe("joe");
         expect(scope.watches.length).toBe(1);
-        expect(_.omit(scope.watches[0].obj, "nox")).toEqual({name: "joe"});
+        expect(_.omit(scope.watches[0].obj, "nox", "toJSON")).toEqual({name: "joe"});
         expect(scope.watches[0].field).toEqual("name");
       });
 

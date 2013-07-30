@@ -7,6 +7,12 @@ Nox.Watch = function(obj, field, fun){
   this.lastKnownValue = undefined;
   this.isReleased = false;
 
+  var toJSONOrig = obj.toJSON;
+
+  obj.toJSON = function(){
+    return toJSONOrig ? toJSONOrig.call(_.omit(obj, "nox")) : _.omit(obj, "nox");
+  };
+
   obj.nox.watches.push(this);
 };
 
@@ -66,6 +72,38 @@ Nox.watch = function(obj, field, fun){
   w.run();
 
   return w;
+};
+
+Nox.Error = function(){
+};
+
+Nox.Error.prototype.clear = function(){
+  var keys = _.keys(this);
+
+  for(var i=0, key; (key = keys[i]) !== undefined; i++){
+    if(key == "nox" || _.isFunction(this[key]))
+      continue;
+
+    this[key] = null;
+  }
+
+  return this;
+};
+
+Nox.Error.prototype.isEmpty = function(){
+  var keys = _.keys(this);
+
+  for(var i=0, key; (key = keys[i]) !== undefined; i++){
+    var val = this[key];
+    if(val){
+      if(key == "nox" || _.isFunction(val))
+        continue;
+
+      return false;
+    }
+  }
+
+  return true;
 };
 
 Nox.Traverse = {};
