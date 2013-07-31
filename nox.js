@@ -295,6 +295,7 @@ Nox.Scope.prototype.on = function(selector, event, fun){
       $el = this.$(selector);
 
   $el.on(event, function(e){
+    e.preventDefault();
     fun(e);
     rootScope.update();
   });
