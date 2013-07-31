@@ -393,7 +393,7 @@ Nox.Scope.prototype.toggle = function(selector, obj, field, fun){
   }else{
 
     this.watch(obj, field, function(newValue){
-      $el.toggle(newValue === true);
+      $el.toggle(!!newValue);
     });
 
   }
