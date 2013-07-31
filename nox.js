@@ -10,7 +10,7 @@ Nox.Watch = function(obj, field, fun){
   var toJSONOrig = obj.toJSON;
 
   obj.toJSON = function(){
-    return toJSONOrig ? toJSONOrig.call(_.omit(obj, "nox")) : _.omit(obj, "nox");
+    return toJSONOrig ? toJSONOrig.call(_.omit(this, "nox")) : _.omit(this, "nox");
   };
 
   obj.nox.watches.push(this);
@@ -236,6 +236,7 @@ Nox.Scope = function(selector, fun, parentScope, args, resolves){
 
 Nox.Scope.prototype.resolve = function(variable, obj, field){
   this.resolves.push([variable, obj, field]);
+  return this;
 };
 
 

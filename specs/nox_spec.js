@@ -18,6 +18,14 @@ describe("Nox", function(){
       expect(watch.isReleased).toBe(false);
 
       expect(obj.nox.watches).toEqual([watch]);
+
+      expect(JSON.stringify(obj)).toBe('{"name":"joe"}');
+
+      var obj2 = {name: "bob", nox: {}};
+      obj2.toJSON = function(){
+        return {name: "BOB"};
+      };
+      expect(JSON.stringify(obj2)).toBe('{"name":"BOB"}');
     });
 
     it("fieldAccessor", function(){
