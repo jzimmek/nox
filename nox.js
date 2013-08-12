@@ -287,7 +287,7 @@ Nox.Scope.prototype.scope = function(selector, fun, args){
 
   this.childScopes.push(childScope);
 
-  return this;
+  return childScope;
 };
 
 Nox.Scope.prototype.on = function(selector, event, fun){

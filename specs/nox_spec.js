@@ -354,7 +354,7 @@ describe("Nox", function(){
 
       expect(scope.childScopes.length).toBe(1);
       expect(fun).toHaveBeenCalledWith(scope.childScopes[0].model, 100);
-      expect(res).toBe(scope);
+      expect(res).toBe(scope.childScopes[0]);
     });
 
     it("on", function(){
