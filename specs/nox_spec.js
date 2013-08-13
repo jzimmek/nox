@@ -6,12 +6,12 @@ describe("Nox", function(){
       var obj = {name: "joe", nox: {watches: []}},
           fun = jasmine.createSpy("watch fun");
 
-      spyOn(Nox.Watch, "fieldAccessor").andReturn("name");
+      spyOn(Nox.Watch, "fieldReader").andReturn("name");
 
       var watch = new Nox.Watch(obj, "name", fun);
 
       expect(watch.obj).toBe(obj);
-      expect(Nox.Watch.fieldAccessor).toHaveBeenCalledWith("name");
+      expect(Nox.Watch.fieldReader).toHaveBeenCalledWith("name");
       expect(watch.field).toBe("name");
       expect(watch.fun).toBe(fun);
       expect(watch.lastKnownValue).toBe(undefined);
@@ -28,10 +28,59 @@ describe("Nox", function(){
       expect(JSON.stringify(obj2)).toBe('{"name":"BOB"}');
     });
 
-    it("fieldAccessor", function(){
-      expect(Nox.Watch.fieldAccessor("someString")).toBe("someString");
+    describe("bugs", function(){
+
+      it("can watch for nested fields", function(){
+        var obj = {obj2: {name: "joe"}},
+            fun = jasmine.createSpy("watch fun");
+
+        var w = Nox.watch(obj, "this.obj2.name", fun);
+
+        expect(fun).toHaveBeenCalledWith("joe", null);
+
+        fun.reset();
+
+        obj.obj2 = {name: "bob"};
+        w.run();
+
+        expect(fun).toHaveBeenCalledWith("bob", null);
+
+        w.writer("joe");
+        w.run();
+
+        expect(fun).toHaveBeenCalledWith("joe", null);
+      });
+
+    });
+
+    it("fieldWriter", function(){
+
+      expect(function(){
+        Nox.Watch.fieldWriter({}, function(){})
+      }).toThrow("writer not supported");
+
+      var obj = {obj2: {name: "joe"}, name: "joe"},
+          writer = Nox.Watch.fieldWriter(obj, "this.obj2.name");
+
+      writer("bob");
+      expect(obj.obj2.name).toBe("bob");
+
+      writer("joe");
+      expect(obj.obj2.name).toBe("joe");
+
+      writer = Nox.Watch.fieldWriter(obj, "name");
+      writer("bob");
+      expect(obj.name).toBe("bob");
+
+      writer = Nox.Watch.fieldWriter(obj, "this.name");
+      writer("joe");
+      expect(obj.name).toBe("joe");
+    });
+
+    it("fieldReader", function(){
+      expect(Nox.Watch.fieldReader("someString")).toBe("someString");
       
-      var res = Nox.Watch.fieldAccessor("this.name.length > 10");        
+      var res = Nox.Watch.fieldReader("this.name.length > 10");        
       expect(typeof(res)).toBe("function");
 
       var code = res.toString()
@@ -44,7 +93,7 @@ describe("Nox", function(){
       expect(code).toBe("return this.name.length > 10");
 
       var fun = (function(){});
-      expect(Nox.Watch.fieldAccessor(fun)).toBe(fun);
+      expect(Nox.Watch.fieldReader(fun)).toBe(fun);
     });
 
     it("release", function(){
@@ -55,6 +104,7 @@ describe("Nox", function(){
       expect(watch.isReleased).toBe(true);
       expect(watch.obj).toBe(null);
       expect(watch.field).toBe(null);
+      expect(watch.writer).toBe(null);
       expect(watch.lastKnownValue).toBe(null);
       expect(obj.nox.watches).toEqual([]);
     });
@@ -305,7 +355,7 @@ describe("Nox", function(){
 
       expect(Nox.watch).toHaveBeenCalledWith(obj, field, fun);
       expect(scope.watches).toEqual([fakeWatch]);
-      expect(res).toBe(scope);
+      // expect(res).toBe(scope);
     });
 
     describe("release", function(){

@@ -2,10 +2,11 @@ var Nox = {};
 
 Nox.Watch = function(obj, field, fun){
   this.obj = obj;
-  this.field = Nox.Watch.fieldAccessor(field);
+  this.field = Nox.Watch.fieldReader(field);
   this.fun = fun;
   this.lastKnownValue = undefined;
   this.isReleased = false;
+  this.writer = Nox.Watch.fieldWriter(this.obj, field);
 
   var toJSONOrig = obj.toJSON;
 
@@ -16,7 +17,23 @@ Nox.Watch = function(obj, field, fun){
   obj.nox.watches.push(this);
 };
 
-Nox.Watch.fieldAccessor = function(field){
+Nox.Watch.fieldReader = function(field){
+  return _.isFunction(field) ? field : (field.match(/^[_a-zA-Z0-9]+$/) ? field : new Function("return " + field));
+};
+
+Nox.Watch.fieldWriter = function(obj, field){
+
+  if(_.isFunction(field))
+    throw "writer not supported";
+
+  return function(newValue){
+    if(field.match(/^[_a-zA-Z0-9]+$/)){
+      obj[field] = newValue;
+    }else{
+      new Function("value", field+"=value").apply(obj, [newValue]);
+    }
+  };
+
   return _.isFunction(field) ? field : (field.match(/^[_a-zA-Z0-9]+$/) ? field : new Function("return " + field));
 };
 
@@ -28,6 +45,7 @@ Nox.Watch.prototype.release = function(){
 
   this.obj.nox.watches = _.without(this.obj.nox.watches, this);
 
+  this.writer = null;
   this.obj = null;
   this.field = null;
   this.fun = null;
@@ -50,7 +68,7 @@ Nox.Watch.readLatestValue = function(obj, field){
 
 Nox.Watch.prototype.updateValue = function(newValue){
   this.lastKnownValue = Nox.Watch.clone(newValue);
-  this.fun.call(this.obj, this.lastKnownValue, this.field);
+  this.fun.call(this.obj, this.lastKnownValue, _.isFunction(this.field) ? null : this.field);
 };
 
 Nox.Watch.prototype.run = function(){  
@@ -257,7 +275,7 @@ Nox.Scope.prototype.update = function(){
 Nox.Scope.prototype.watch = function(obj, field, fun){
   var watch = Nox.watch(obj, field, _.bind(fun, this));
   this.watches.push(watch);
-  return this;
+  return watch;
 };
 
 Nox.Scope.prototype.release = function(){
@@ -318,11 +336,12 @@ Nox.Scope.prototype.value = function(selector, obj, field){
       rootScope = this.rootScope();
 
   $el.on("change blur keyup", function(){
-    obj[field] = $(this).val();
+    // obj[field] = $(this).val();
+    w.writer($(this).val());
     rootScope.update();
   });
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
     $el.val(newValue);
   });
 
@@ -432,11 +451,12 @@ Nox.Scope.prototype.check = function(selector, obj, field){
       $el = this.$(selector);
 
   $el.on("change", function(){
-    obj[field] = $(this).is(":checked");
+    // obj[field] = $(this).is(":checked");
+    w.writer($(this).is(":checked"));
     self.update();
   });
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
     if(newValue)  $el.prop("checked", true);
     else          $el.removeAttr("checked");
   }, selector);
@@ -452,11 +472,12 @@ Nox.Scope.prototype.radioset = function(selector, obj, field, opts){
       name = "radio"+_.uniqueId();
 
   $el.on("change", function(){
-    obj[field] = entries[$(":checked", this).index()];
+    // obj[field] = entries[$(":checked", this).index()];
+    w.writer(entries[$(":checked", this).index()]);
     self.update();
   });
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
     $el.empty();
 
     var checked = obj[field];
@@ -489,16 +510,18 @@ Nox.Scope.prototype.select = function(selector, obj, field, opts){
   $el.on("change", function(){
 
     if(multiple){
-      obj[field] = _.map($("option:selected", this).toArray(), function(e){ return entries[$(e).index()]; });
+      // obj[field] = _.map($("option:selected", this).toArray(), function(e){ return entries[$(e).index()]; });
+      w.writer(_.map($("option:selected", this).toArray(), function(e){ return entries[$(e).index()]; }));
     }else{
       var selectedIdx = $("option:selected", this).index();
-      obj[field] = (selectedIdx == 0) ? null : entries[selectedIdx - 1];
+      // obj[field] = (selectedIdx == 0) ? null : entries[selectedIdx - 1];
+      w.writer((selectedIdx == 0) ? null : entries[selectedIdx - 1]);
     }
 
     self.update();
   });
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
 
     $el.empty();
 
@@ -544,7 +567,8 @@ Nox.Scope.prototype.date = function(selector, obj, field, opts){
         year = $("option:selected", $year).val();
 
     if(day && month && year){
-      obj[field] = new Date(parseInt(year, 10), parseInt(month, 10), parseInt(day, 10));
+      // obj[field] = new Date(parseInt(year, 10), parseInt(month, 10), parseInt(day, 10));
+      w.writer(new Date(parseInt(year, 10), parseInt(month, 10), parseInt(day, 10)));
       self.update();
     }
   });
@@ -560,7 +584,7 @@ Nox.Scope.prototype.date = function(selector, obj, field, opts){
     }    
   };
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
 
     $day.html("<option value=''>please choose</option>");
     $month.html("<option value=''>please choose</option>");
@@ -610,10 +634,11 @@ Nox.Scope.prototype.message = function(selector, obj, field){
   
   $el.hide();
 
-  this.watch(obj, field, function(newValue){
+  var w = this.watch(obj, field, function(newValue){
     if(newValue){
       $el.hide().text(newValue).fadeIn("slow", function(){
-        obj[field] = null;
+        // obj[field] = null;
+        w.writer(null);
         self.update();
       });
     }
